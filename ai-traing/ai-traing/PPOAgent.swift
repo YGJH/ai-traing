@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+
 
 typealias Vector = [Float]
 
@@ -33,7 +35,8 @@ class PPOAgent {
     // Core model and optimizer
     var model: MLP
     var optimizer: Adam
-    
+    var trajectories: [Trajectory]
+
     // PPO hyperparameters
     let gamma: Float
     let gae_lambda: Float
@@ -46,15 +49,15 @@ class PPOAgent {
     // Hidden state for inference/rollouts (match LSTM hidden state shape)
     var hidden: (h: [Double], c: [Double])?
     var opponent_has_output: Int
-    var env: env
+    var env: AIEnv
     var opponent_has_output_count: Int
     var turn: Int
     var agent_id: Bool = true
     var agent_has_output: Int
     let max_opponent_can_output: Int = 55
     init(
-        action_dim: Int,
-        hidden_size: Int = 64,
+        action_dim: Int = 11,
+        hidden_size: Int = 12,
         gamma: Float = 0.99,
         gae_lambda: Float = 0.95,
         clip_coef: Float = 0.2,
@@ -65,7 +68,7 @@ class PPOAgent {
         max_grad_norm: Float = 0.5,
         agent_id: Bool = true,
         turn: Int,
-        env: env
+        env: AIEnv
     ){
         self.opponent_has_output = 0
         self.turn = 1
@@ -85,19 +88,19 @@ class PPOAgent {
         self.agent_id = agent_id
         
         // Obtain a sample observation to determine input size without using self
-        let (agent_obs1, _, now_turn, _, _) = env.reset(agent_id: agent_id)
-        // Observation length = base obs (agent_obs1) + 3 derived scalars appended in convert_agent_obs_to_obs
+        let (agent_obs1, _, _, _ , now_turn, _, _) = env.reset(agent_id: agent_id)
+        // Observation length = base obs (agent_obs1) + 4 derived scalars appended in convert_agent_obs_to_obs
         let obs_dim = agent_obs1.count + 4
-        
+        self.trajectories = []
         // Initialize remaining state as desired
         self.turn = now_turn
         self.opponent_has_output = 0
         self.opponent_has_output_count = 0
         self.agent_has_output = 0
         self.hidden = nil
-        
+
         // Now it's safe to initialize properties that may use self later
-        self.model = MLP(inputSize: obs_dim, hiddenSize: hidden_size, hiddenLayers: 5, outputDim: action_dim)
+        self.model = MLP(inputSize: obs_dim, hiddenSize: hidden_size, hiddenLayers: 3, outputDim: action_dim)
         self.optimizer = Adam(params: self.model.parameters(), lr: lr)
     }
     
@@ -115,7 +118,7 @@ class PPOAgent {
     }
     
     
-    func convert_agent_obs_to_obs(_ agent_obs1: [Float] , _ agent_obs2: [Float] ,_ now_turn: Int) -> Vector {
+    func convert_agent_obs_to_obs(_ agent_obs1: [Float] , _ agent_obs2: [Float],_ agent1_has_passed: Bool , _ agent2_has_passed: Bool , _ now_turn: Int) -> Vector {
         var ret: Vector = []
         if(now_turn != self.turn) {
             self.opponent_has_output = 0
@@ -161,30 +164,66 @@ class PPOAgent {
         ret.append(Float(opponent_has_output_count))
         ret.append(Float(max_opponent_can_output - self.opponent_has_output))
         ret.append(Float(agent_can_output))
-        
+        ret.append(Float(agent1_has_passed ? 1.0 : 0.0))
+        ret.append(Float(agent2_has_passed ? 1.0 : 0.0))
         // agent input dim = 13
         
         return ret
         
     }
     
-    
+    func step_one() -> (Int, Bool) {
+        var finished = false
+        var action = 0
+        
+        // Get observation from environment
+        var (agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn, (agent1_reward, agent2_reward), fin) = env.get_obs()
+        
+        // Convert to agent's observation format
+        let ret = self.convert_agent_obs_to_obs(agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn);
+        
+        // Forward pass
+        let (probs, value) = model.forward(x: ret)
+        action = argmax(probs)
+        
+        // Execute action in environment
+        (agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn, (agent1_reward, agent2_reward), fin) = env.step(agent_id: agent_id , action: action)
+        
+        // Store trajectory
+        let traj = Trajectory(
+            obs: ret,
+            action: action,
+            logProb: probs[action],
+            value: value,
+            reward: Float(self.agent_id ? agent1_reward : agent2_reward),
+            done: fin
+        )
+        self.trajectories.append(traj)
+        finished = fin
+        
+        // Train if finished
+        if fin {
+            trainTRPO(trajectories: trajectories)
+            trajectories.removeAll() // Clear trajectories after training
+        }
+        
+        return (action, finished)
+    }
     
     
     func run(num_episodes: Int) {
         
-        var trajectories: [Trajectory] = []
         
         for _ in 0..<num_episodes{
-            
-            var (agent_obs1, agent_obs2, now_turn, reward, fin) = self.env.reset(agent_id: self.agent_id)
+
+            var (agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn, (agent1_reward, agent2_reward), fin)  = self.env.reset(agent_id: self.agent_id)
             self.turn = now_turn
             self.opponent_has_output = 0
             self.opponent_has_output_count = 0
             self.hidden = nil // 每局一開始把 LSTM hidden 清空
             self.agent_has_output = 0
             while !fin {
-                let agent_obs = convert_agent_obs_to_obs(agent_obs1, agent_obs2, now_turn)
+                let agent_obs = convert_agent_obs_to_obs(agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed, now_turn)
                 // 準備初始 hidden state（若為 nil 則用全 0）
 
                 // 先綁定到區域變數，再把新 hidden 寫回屬性，避免「Expected pattern」
@@ -192,14 +231,14 @@ class PPOAgent {
                 let (probs, value) = self.model.forward(x: agent_obs)
                 let action = argmax(probs)
 
-                (agent_obs1, agent_obs2, now_turn, reward, fin) = self.env.step(agent_id: self.agent_id, action: action)
+                (agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed, now_turn, (agent1_reward, agent2_reward), fin) = self.env.step(agent_id: self.agent_id, action: action)
 
                 let traj = Trajectory(
                     obs: agent_obs,
                     action: action,
                     logProb: probs[action],
                     value: value,
-                    reward: reward,
+                    reward: Float(self.agent_id ? agent1_reward : agent2_reward),
                     done: fin
                 )
                 trajectories.append(traj)
@@ -254,6 +293,11 @@ class PPOAgent {
         }
     }
 
+    
+    
+    
+    
+    
     func getFlatParameters() -> [Float] {
         var flat: [Float] = []
         for p in optimizer.params {
@@ -297,6 +341,13 @@ class PPOAgent {
         let oldLogProbs = trajs.map { $0.logProb }
         let advantages = trajs.map { $0.advantage }
 
+        // Pre-compute old probs for KL
+        var oldProbs: [Vector] = []
+        for s in states {
+            let (p, _) = model.forward(x: s)
+            oldProbs.append(p)
+        }
+
         // 3. 存舊參數（用來算 KL）
         let oldParams = getFlatParameters()
 
@@ -315,16 +366,14 @@ class PPOAgent {
         // 5. 用 conjugate gradient 解 Hx = g，得到 search direction x
         let x = conjugateGradient(b: g,
                                   states: states,
-                                  actions: actions,
-                                  oldLogProbs: oldLogProbs,
+                                  oldProbs: oldProbs,
                                   cgIters: cgIters,
                                   cgDamping: cgDamping)
 
         // 6. 算 x^T H x （用 fisherVectorProduct）
         let Hx = fisherVectorProduct(x,
                                      states: states,
-                                     actions: actions,
-                                     oldLogProbs: oldLogProbs,
+                                     oldProbs: oldProbs,
                                      cgDamping: cgDamping)
         let xHx = dot(x, Hx)
         let stepSize = sqrt(2 * maxKL / (xHx + 1e-8))
@@ -337,6 +386,7 @@ class PPOAgent {
                    states: states,
                    actions: actions,
                    oldLogProbs: oldLogProbs,
+                   oldProbs: oldProbs,
                    advantages: advantages,
                    maxKL: maxKL,
                    lineSearchSteps: lineSearchSteps)
@@ -347,8 +397,7 @@ class PPOAgent {
     
     func conjugateGradient(b: [Float],
                            states: [Vector],
-                           actions: [Int],
-                           oldLogProbs: [Float],
+                           oldProbs: [Vector],
                            cgIters: Int,
                            cgDamping: Float) -> [Float]
     {
@@ -360,8 +409,7 @@ class PPOAgent {
         for _ in 0..<cgIters {
             let Ap = fisherVectorProduct(p,
                                          states: states,
-                                         actions: actions,
-                                         oldLogProbs: oldLogProbs,
+                                         oldProbs: oldProbs,
                                          cgDamping: cgDamping)
             let alpha = rdotr / (dot(p, Ap) + 1e-8)
             for i in 0..<x.count {
@@ -385,9 +433,10 @@ class PPOAgent {
     func trainValue(trajectories: [Trajectory],
                     valueEpochs: Int = 2)
     {
+        let n = Float(trajectories.count)
         // 用 Adam 做 regression: minimize (V(s) - R)^2
         for _ in 0..<valueEpochs {
-            optimizer.zeroGrad()
+            model.zeroGrads()
 
             var totalLoss: Float = 0
             for traj in trajectories {
@@ -400,12 +449,13 @@ class PPOAgent {
                 let loss = 0.5 * diff * diff
                 totalLoss += loss
 
-                // TODO: 手刻 value head 的反向傳播，把 ∂loss/∂params
-                // 寫進 Parameter1D.grad
+                // dLoss/dv = (v - target)
+                // Average over batch
+                let dValue = (v - target) / n
+                model.backward(x: s, dLogits: nil, dValue: dValue)
             }
 
-            // 用 Adam.step() 更新（這裡同時也會動到 policy 的參數，因為你 shared trunk；
-            // 如果要完全分開 policy / value 的參數，可以改架構）
+            model.copyGradientsTo(params: optimizer.params)
             optimizer.step()
         }
     }
@@ -438,6 +488,7 @@ class PPOAgent {
                     states: [Vector],
                     actions: [Int],
                     oldLogProbs: [Float],
+                    oldProbs: [Vector],
                     advantages: [Float],
                     maxKL: Float,
                     lineSearchSteps: Int)
@@ -457,7 +508,7 @@ class PPOAgent {
                                      actions: actions,
                                      oldLogProbs: oldLogProbs,
                                      advantages: advantages)
-            let kl = meanKL(states: states, oldLogProbs: oldLogProbs)
+            let kl = meanKL(states: states, oldProbs: oldProbs)
 
             if newLoss < oldLoss && kl <= maxKL {
                 // 接受這個 step
@@ -474,59 +525,80 @@ class PPOAgent {
     }
     
     func meanKL(states: [Vector],
-                oldLogProbs: [Float]) -> Float
+                oldProbs: [Vector]) -> Float
     {
-        // TODO: 真 TRPO 要 π_old 全分布；這裡簡化成 approximate KL，
-        // 你可以再改成完整版本
+        var totalKL: Float = 0
+        let n = states.count
         
-        return 0.0
+        for i in 0..<n {
+            let s = states[i]
+            let pOld = oldProbs[i]
+            let (pNew, _) = model.forward(x: s)
+            
+            // KL = sum pOld * (log pOld - log pNew)
+            var kl: Float = 0
+            for j in 0..<pOld.count {
+                let po = pOld[j]
+                let pn = pNew[j]
+                if po > 1e-8 && pn > 1e-8 {
+                    kl += po * (log(po) - log(pn))
+                }
+            }
+            totalKL += kl
+        }
+        
+        return totalKL / Float(n)
     }
 
     
-    
+                                        
     func fisherVectorProduct(_ v: [Float],
                              states: [Vector],
-                             actions: [Int],
-                             oldLogProbs: [Float],
+                             oldProbs: [Vector],
                              cgDamping: Float) -> [Float]
     {
-        // 1. 把 grad 歸 0
-        optimizer.zeroGrad()
-
-        // 2. 算平均 KL(π_old || π_new)
+        // Finite difference: Hv approx (gradKL(theta + eps*v) - gradKL(theta)) / eps
+        // Since gradKL(theta) is 0, Hv approx gradKL(theta + eps*v) / eps
+        
+        let eps: Float = 1e-2 / (sqrt(dot(v, v)) + 1e-8)
+        let oldParams = getFlatParameters()
+        
+        // theta + eps * v
+        let newParams = zip(oldParams, v).map { $0 + eps * $1 }
+        setFlatParameters(newParams)
+        
+        // Compute grad KL
+        model.zeroGrads()
         let n = states.count
-        var totalKL: Float = 0
-
+        
         for i in 0..<n {
             let s = states[i]
-            let (logProbsNew, _) = model.forward(x: s)
-            // π_old 是 fixed，所以你要把當初的 prob 儲存起來（或 logProbsOld）
-            // 這裡簡化成用 oldLogProbs[i] 代表 log π_old(a_i | s_i)，
-            // 真正 KL 其實要 sum over all actions，這裡就先留 TODO
-
-            // TODO: 真正應該是：
-            //   KL(π_old || π_new) = sum_a π_old(a) * (log π_old(a) - log π_new(a))
-            // 你 rollout 時可以順便存整個 π_old(a) vector，而不是只有 logπ_old(a_t)
+            let pOld = oldProbs[i]
+            let (pNew, _) = model.forward(x: s)
+            
+            // grad KL w.r.t logits = (pNew - pOld) / N
+            var dLogits = [Float](repeating: 0, count: pNew.count)
+            for j in 0..<pNew.count {
+                dLogits[j] = (pNew[j] - pOld[j]) / Float(n)
+            }
+            
+            model.backward(x: s, dLogits: dLogits, dValue: nil)
         }
-
-        let meanKL = totalKL / Float(n)
-
-        // 3. 對 meanKL 做一次 backprop，取得 ∇_θ KL
-        // TODO: 手刻 KL 的梯度，寫到 Parameter1D.grad
-
-        // 4. 把 grad flatten 成一條 g_kl
+        
+        model.copyGradientsTo(params: optimizer.params)
+        
+        // Extract grad
         var gKL: [Float] = []
         for p in optimizer.params {
             gKL.append(contentsOf: p.grad)
         }
-
-        // 5. H v ≈ (∇KL ⋅ v) + damping * v
-        // 真正的 Hv 算法應該用 "Jacobian-vector product" 的 trick，
-        // 這裡我們簡化，只給出骨架，你實作時可以照 TRPO 論文 / PyTorch 實作改。
+        
+        // Restore params
+        setFlatParameters(oldParams)
 
         var result = [Float](repeating: 0, count: v.count)
         for i in 0..<v.count {
-            result[i] = gKL[i] + cgDamping * v[i]
+            result[i] = gKL[i] / eps + cgDamping * v[i]
         }
         return result
     }
@@ -537,33 +609,44 @@ class PPOAgent {
                                oldLogProbs: [Float],
                                advantages: [Float]) -> [Float]
     {
-        // 1. 把所有 grad 歸 0
-        optimizer.zeroGrad()
+        // 1. Clear internal grads
+        model.zeroGrads()
 
         // 2. 對每個 sample 算 policy loss，並把 grad 寫入 Parameter1D.grad
         let n = states.count
-        var totalLoss: Float = 0
-
+        
         for i in 0..<n {
             let s = states[i]
             let a = actions[i]
             let oldLogP = oldLogProbs[i]
             let adv = advantages[i]
 
-            let (logProbs, _) = model.forward(x: s)
-            let logP = logProbs[a]
+            let (probs, _) = model.forward(x: s)
+            let logP = log(probs[a] + 1e-10)
             let ratio = expf(logP - oldLogP)
 
-            let loss_i = -ratio * adv  // 要 maximize，所以加負號
-            totalLoss += loss_i
-
-            // TODO: 這裡你要：
-            //   1. 算出 ∂loss_i/∂logits, ∂loss_i/∂value 等
-            //   2. 手刻 MLP 的 backprop，把梯度一路傳到 W, b, heads
-            //   3. 把結果寫進對應的 Parameter1D.grad
+            // Loss = - ratio * adv
+            // dLoss/dLogits = - adv * ratio * (delta_aj - pi_j)
+            //               = adv * ratio * (pi_j - delta_aj)
+            
+            var dLogits = [Float](repeating: 0, count: probs.count)
+            for j in 0..<probs.count {
+                if j == a {
+                    dLogits[j] = adv * ratio * (probs[j] - 1.0)
+                } else {
+                    dLogits[j] = adv * ratio * probs[j]
+                }
+                // Average over batch
+                dLogits[j] /= Float(n)
+            }
+            
+            model.backward(x: s, dLogits: dLogits, dValue: nil)
         }
 
-        // 3. grad 現在都在各個 Parameter1D.grad 裡，把它們 flatten 成 g
+        // 3. Copy to params
+        model.copyGradientsTo(params: optimizer.params)
+        
+        // 4. Flatten
         var g: [Float] = []
         for p in optimizer.params {
             g.append(contentsOf: p.grad)

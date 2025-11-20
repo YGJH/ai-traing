@@ -14,6 +14,12 @@ final class MLP: Codable {
     private(set) var valueHead: Matrix
     private(set) var action: Matrix
 
+    // Gradients (not Codable)
+    private var dW: [Matrix] = []
+    private var db: [Vector] = []
+    private var dValueHead: Matrix = []
+    private var dAction: Matrix = []
+
     // Model metadata (useful for validation on load)
     private let inputSize: Int
     private let hiddenSize: Int
@@ -123,9 +129,57 @@ final class MLP: Codable {
             // Save the newly initialized model
             try? self.save()
         }
+        
+        // Initialize gradients
+        self.zeroGrads()
     }
 
     // MARK: - Public API
+
+    func zeroGrads() {
+        self.dW = W.map { mat in mat.map { row in Array(repeating: 0.0, count: row.count) } }
+        self.db = b.map { vec in Array(repeating: 0.0, count: vec.count) }
+        self.dAction = action.map { row in Array(repeating: 0.0, count: row.count) }
+        self.dValueHead = valueHead.map { row in Array(repeating: 0.0, count: row.count) }
+    }
+
+    func copyGradientsTo(params: [Parameter1D]) {
+        var idx = 0
+        
+        // Must match the order in parameters()
+        
+        // === trunk: W, b ===
+        for l in 0..<dW.count {
+            // W[l]
+            for r in 0..<dW[l].count {
+                if idx < params.count {
+                    params[idx].grad = dW[l][r]
+                    idx += 1
+                }
+            }
+            // b[l]
+            if idx < params.count {
+                params[idx].grad = db[l]
+                idx += 1
+            }
+        }
+
+        // === action head ===
+        for r in 0..<dAction.count {
+            if idx < params.count {
+                params[idx].grad = dAction[r]
+                idx += 1
+            }
+        }
+
+        // === value head ===
+        for r in 0..<dValueHead.count {
+            if idx < params.count {
+                params[idx].grad = dValueHead[r]
+                idx += 1
+            }
+        }
+    }
 
     // Forward pass returning action probabilities (softmax) from the action head.
     // The value head is computed but not returned here; use forwardWithValue if you need both.
@@ -149,7 +203,139 @@ final class MLP: Codable {
         return (probs, value)
     }
     
-    
+    func backward(x: Vector, dLogits: Vector?, dValue: Float?) {
+        // 1. Re-compute activations
+        var activations: [Vector] = [x]
+        var h = x
+        
+        // Trunk forward with storage
+        if !W.isEmpty {
+            let lastLayerIndex = W.count - 1
+            for layer in 0...lastLayerIndex {
+                // Linear
+                var z = add(matmul(h, W[layer]), b[layer])
+                // ReLU (except last trunk layer? No, usually trunk has ReLU on all layers, 
+                // but trunkForward implementation says: if layer != lastLayerIndex { a = relu(a) }
+                // Let's check trunkForward implementation again.
+                // "if layer != lastLayerIndex { a = relu(a) }"
+                // This means the last layer of the trunk is LINEAR? 
+                // Usually shared trunk ends with ReLU. 
+                // But let's follow trunkForward logic exactly.
+                
+                if layer != lastLayerIndex {
+                    z = relu(z)
+                }
+                h = z
+                activations.append(h)
+            }
+        }
+        
+        // h is now the output of the trunk.
+        
+        // 2. Backprop Heads
+        var dTrunkOutput = Array(repeating: Float(0.0), count: h.count)
+        
+        // Action Head
+        if let dLogits = dLogits {
+            // logits = h * action
+            // dAction += h^T * dLogits
+            // dTrunkOutput += dLogits * action^T
+            
+            precondition(dLogits.count == outputDim)
+            
+            // Update dAction
+            for r in 0..<dAction.count { // r is index in h
+                let hr = h[r]
+                if hr == 0 { continue }
+                for c in 0..<dAction[r].count { // c is index in logits
+                    dAction[r][c] += hr * dLogits[c]
+                }
+            }
+            
+            // Backprop to trunk
+            for r in 0..<action.count {
+                for c in 0..<action[r].count {
+                    dTrunkOutput[r] += dLogits[c] * action[r][c]
+                }
+            }
+        }
+        
+        // Value Head
+        if let dValue = dValue {
+            // value = h * valueHead
+            // dValueHead += h^T * dValue
+            // dTrunkOutput += dValue * valueHead^T
+            
+            // Update dValueHead
+            for r in 0..<dValueHead.count {
+                let hr = h[r]
+                if hr == 0 { continue }
+                dValueHead[r][0] += hr * dValue
+            }
+            
+            // Backprop to trunk
+            for r in 0..<valueHead.count {
+                dTrunkOutput[r] += dValue * valueHead[r][0]
+            }
+        }
+        
+        // 3. Backprop Trunk
+        if W.isEmpty { return }
+        
+        var delta = dTrunkOutput
+        let lastLayerIndex = W.count - 1
+        
+        for layer in stride(from: lastLayerIndex, through: 0, by: -1) {
+            let input = activations[layer] // Input to this layer
+            let output = activations[layer+1] // Output of this layer
+            
+            // If this layer had ReLU applied, pass delta through ReLU derivative
+            // Logic from trunkForward: if layer != lastLayerIndex { a = relu(a) }
+            // So if layer != lastLayerIndex, we applied ReLU.
+            // Wait, if layer == lastLayerIndex, we did NOT apply ReLU.
+            // So delta is already correct for the linear part of the last layer.
+            // For other layers, output was ReLU(z). dReLU = 1 if output > 0 else 0.
+            
+            if layer != lastLayerIndex {
+                for i in 0..<delta.count {
+                    if output[i] <= 0 {
+                        delta[i] = 0
+                    }
+                }
+            }
+            
+            // Now delta is dL/dz where z = W*input + b
+            
+            // dW[layer] += input^T * delta
+            for r in 0..<dW[layer].count {
+                let inVal = input[r]
+                if inVal == 0 { continue }
+                for c in 0..<dW[layer][r].count {
+                    dW[layer][r][c] += inVal * delta[c]
+                }
+            }
+            
+            // db[layer] += delta
+            for c in 0..<db[layer].count {
+                db[layer][c] += delta[c]
+            }
+            
+            // Propagate delta to previous layer (if not first)
+            if layer > 0 {
+                var nextDelta = Array(repeating: Float(0.0), count: input.count)
+                // nextDelta = delta * W[layer]^T
+                // nextDelta[r] = sum_c (delta[c] * W[layer][r][c])
+                for r in 0..<W[layer].count {
+                    var sum: Float = 0
+                    for c in 0..<W[layer][r].count {
+                        sum += delta[c] * W[layer][r][c]
+                    }
+                    nextDelta[r] = sum
+                }
+                delta = nextDelta
+            }
+        }
+    }
     
     
     // Persist current parameters to disk
@@ -182,6 +368,8 @@ final class MLP: Codable {
         self.b = loaded.b
         self.valueHead = loaded.valueHead
         self.action = loaded.action
+        
+        self.zeroGrads()
     }
 
     private func randomInitialize() {
@@ -246,6 +434,8 @@ final class MLP: Codable {
             }
             self.valueHead = w
         }
+        
+        self.zeroGrads()
     }
 
     private func trunkForward(x: Vector) -> Vector {
