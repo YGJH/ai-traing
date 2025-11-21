@@ -179,8 +179,26 @@ class PPOAgent {
         // Get observation from environment
         var (agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn, (agent1_reward, agent2_reward), fin) = env.get_obs()
         
+        // Determine "My" observation and "Opponent" observation based on agent_id
+        let my_obs: [Float]
+        let opp_obs: [Float]
+        let my_passed: Bool
+        let opp_passed: Bool
+        
+        if self.agent_id { // AI is Agent 1
+            my_obs = agent_obs1
+            opp_obs = agent_obs2
+            my_passed = agent1_has_passed
+            opp_passed = agent2_has_passed
+        } else { // AI is Agent 2
+            my_obs = agent_obs2
+            opp_obs = agent_obs1
+            my_passed = agent2_has_passed
+            opp_passed = agent1_has_passed
+        }
+        
         // Convert to agent's observation format
-        let ret = self.convert_agent_obs_to_obs(agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn);
+        let ret = self.convert_agent_obs_to_obs(my_obs, opp_obs, my_passed, opp_passed , now_turn);
         
         // --- Model Logic ---
         let (probs, value) = model.forward(x: ret)
@@ -192,7 +210,7 @@ class PPOAgent {
             // Check if action i is valid
             if i < 10 {
                 // Card play action
-                return agent_obs1[i] == 1 ? p : -1000.0 // Can only play if card is not used
+                return my_obs[i] == 1 ? p : -1000.0 // Can only play if card is not used
             } else {
                 // Pass action is always valid
                 return p

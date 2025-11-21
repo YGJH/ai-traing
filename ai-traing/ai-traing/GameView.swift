@@ -109,7 +109,9 @@ struct GameView: View {
     @State var agent: PPOAgent?
     @State var turn = 0
     @State var already_pass = false;
-    let agent_id = false;
+    
+    var agent_id: Bool { isPlayerFirst }
+    
     @State var  agent_thinking = false;
     // Alert state
     @State private var showAlert = false
@@ -184,14 +186,22 @@ struct GameView: View {
         
         print("👤 Player move: \(action)")
         // 1. Player executes step
-        let (_, _, _, agent2Passed, _, _, finished) = gameEnv.step(agent_id: agent_id, action: action)
+        // Return signature: (obs1, obs2, ag1Passed, ag2Passed, turn, rewards, finished)
+        let (_, _, ag1Passed, ag2Passed, _, _, finished) = gameEnv.step(agent_id: agent_id, action: action)
         
-        // Sync already_pass with env state (handles round reset)
-        already_pass = agent2Passed
+        // Update Player's pass state based on who the player is
+        already_pass = agent_id ? ag1Passed : ag2Passed
         
         if finished {
             print("🏁 Game Over after Player move")
             handleGameEnd()
+            return
+        }
+        
+        // Check if AI has passed. If so, Player continues (AI cannot move).
+        let aiPassed = agent_id ? ag2Passed : ag1Passed
+        if aiPassed {
+            print("🤖 AI has passed. Player continues.")
             return
         }
         
@@ -206,18 +216,14 @@ struct GameView: View {
         // 使用 Task { @MainActor in ... } 確保在主執行緒執行
         Task { @MainActor in
             // Check if AI has already passed
-            let (_, _, aiPassed, _, _, _, _) = gameEnv.get_obs()
+            let (_, _, ag1Passed, ag2Passed, _, _, _) = gameEnv.get_obs()
+            let aiPassed = agent_id ? ag2Passed : ag1Passed
+            let playerPassed = agent_id ? ag1Passed : ag2Passed
             
             if aiPassed {
                 print("🤖 AI has already passed. Skipping turn.")
                 agent_thinking = false
                 isProcessingTurn = false
-                
-                // If player passed too, round might end here? 
-                // Actually if AI passed, it means it passed in previous turn.
-                // If Player just passed, then round ends in handlePlayerMove.
-                // So we shouldn't be here if round ended.
-                // But if Player played a card, and AI passed previously, AI skips.
                 return
             }
 
@@ -243,9 +249,13 @@ struct GameView: View {
                 
                 print("🤖 AI executed action: \(aiAction)")
                 
-                // Sync already_pass after AI move (in case round ended due to AI pass)
-                let (_, _, _, agent2Passed, _, _, _) = gameEnv.get_obs()
-                already_pass = agent2Passed
+                // Sync state after AI move
+                let (_, _, newAg1Passed, newAg2Passed, _, _, _) = gameEnv.get_obs()
+                
+                // Update Player's pass state (in case round reset or something changed)
+                already_pass = agent_id ? newAg1Passed : newAg2Passed
+                
+                let currentPlayerPassed = agent_id ? newAg1Passed : newAg2Passed
                 
                 if finished {
                     print("🏁 Game Over after AI move")
@@ -254,7 +264,7 @@ struct GameView: View {
                     handleGameEnd()
                 } else {
                     // If Player has passed, AI continues playing automatically
-                    if already_pass {
+                    if currentPlayerPassed {
                         print("🔄 Player passed, AI continues...")
                         runAITurn() // Recursive call for next AI turn
                     } else {
@@ -307,12 +317,18 @@ struct GameView: View {
                     // Treat 0 as "used" (true), 1 as "not used" (false)
                     let isUsedBinding = Binding<Bool>(
                         get: {
-                            guard i < gameEnv.obs_agent2.count else { return false }
-                            return gameEnv.obs_agent2[i] == 1  // 1 = unused (show blue), 0 = used (transparent)
+                            let obs = self.agent_id ? gameEnv.obs_agent1 : gameEnv.obs_agent2
+                            guard i < obs.count else { return false }
+                            return obs[i] == 1  // 1 = unused (show blue), 0 = used (transparent)
                         },
                         set: { newValue in
-                            guard i < gameEnv.obs_agent2.count else { return }
-                            gameEnv.obs_agent2[i] = newValue ? 1 : 0
+                            if self.agent_id {
+                                guard i < gameEnv.obs_agent1.count else { return }
+                                gameEnv.obs_agent1[i] = newValue ? 1 : 0
+                            } else {
+                                guard i < gameEnv.obs_agent2.count else { return }
+                                gameEnv.obs_agent2[i] = newValue ? 1 : 0
+                            }
                         }
                     )
                     
@@ -328,9 +344,10 @@ struct GameView: View {
                             .onTapGesture {
                                 if isProcessingTurn { return }
                                 
-                                print("🔥 Card \(i+1) tapped! Current value: \(gameEnv.obs_agent2[i])")
+                                let currentVal = self.agent_id ? gameEnv.obs_agent1[i] : gameEnv.obs_agent2[i]
+                                print("🔥 Card \(i+1) tapped! Current value: \(currentVal)")
                                 
-                                if gameEnv.obs_agent2[i] == 0 {
+                                if currentVal == 0 {
                                     print("❌ Card \(i+1) already used")
                                 }
                                 else if self.already_pass {
@@ -338,7 +355,7 @@ struct GameView: View {
                                     alertMessage = "You cannot output card in this turn."
                                     showAlert = true
                                 }
-                                else if gameEnv.obs_agent2[i] == 1 {
+                                else if currentVal == 1 {
                                     withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                                         handlePlayerMove(action: i)
                                     }
@@ -350,132 +367,140 @@ struct GameView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             // Top UI Layer: Buttons & Status Board
-            VStack(spacing: 10) {
-                // Row 1: Back Button & Pass Button
-                HStack {
-                    // Back Button
-                    Button {
-                        print("🔙 Back button tapped")
-                        onBack()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 36))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.white)
-                            .shadow(radius: 4)
-                    }
-//                    .border(.red)
-                    Spacer()
-                    // Pass Button
-                    Button {
-                        if isProcessingTurn { return }
-                        print("🔘 Pass button tapped")
-                        already_pass = true
-                        handlePlayerMove(action: 10) // 10 is Pass
-                    } label: {
-                        Text("PASS")
-                            .font(.headline)
-                            .tracking(2)
-                            .frame(width: 100, height: 40)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .shadow(color: .orange.opacity(0.5), radius: 10, x: 0, y: 5)
-                    .disabled(isProcessingTurn)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 50) // Safe area top
-                
-                // Row 2: Status Board (Aligned Left)
-                HStack {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "flag.checkered.2.crossed")
-                                .foregroundColor(.yellow)
-                            Text("Round \(gameEnv.round) / 3")
-                                .font(.title3.bold())
-                                .foregroundColor(.white)
+            VStack(spacing: 0) {
+                // Header Area with Gradient Background
+                VStack(spacing: 12) {
+                    // Row 1: Navigation & Round Info
+                    HStack {
+                        // Back Button
+                        Button {
+                            print("🔙 Back button tapped")
+                            onBack()
+                        } label: {
+                            Image(systemName: "chevron.left.circle.fill")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.white)
+                                .shadow(radius: 2)
                         }
                         
-                        Divider().background(Color.white.opacity(0.3))
+                        Spacer()
                         
-                        // AI Section
+                        // Round Info
+                        HStack(spacing: 6) {
+                            Image(systemName: "flag.checkered.2.crossed")
+                                .foregroundColor(.yellow)
+                                .font(.system(size: 16))
+                            Text("Round \(gameEnv.round) / 3")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.3))
+                        .cornerRadius(20)
+                        
+                        Spacer()
+                        
+                        // Pass Button
+                        Button {
+                            if isProcessingTurn { return }
+                            print("🔘 Pass button tapped")
+                            already_pass = true
+                            handlePlayerMove(action: 10) // 10 is Pass
+                        } label: {
+                            Text("PASS")
+                                .font(.system(size: 14, weight: .bold))
+                                .tracking(1)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(isProcessingTurn ? Color.gray : Color.orange)
+                                .foregroundColor(.white)
+                                .cornerRadius(20)
+                                .shadow(radius: 2)
+                        }
+                        .disabled(isProcessingTurn)
+                    }
+                    
+                    // Row 2: Stats & History
+                    HStack(alignment: .top, spacing: 16) {
+                        // AI Stats (Left)
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text("🤖 AI")
                                     .font(.caption)
+                                    .bold()
+                                    .foregroundColor(.white.opacity(0.9))
+                                Text("(\(gameEnv.agent1_wins) Wins)")
+                                    .font(.caption2)
                                     .foregroundColor(.white.opacity(0.7))
-                                Spacer()
-                                VStack(alignment: .trailing) {
-                                    Text("\(gameEnv.agent1_wins) Wins")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text("Sum: \(gameEnv.agent1_round_cards.reduce(0, +))")
-                                        .font(.caption)
-                                        .foregroundColor(.yellow)
-                                }
                             }
                             
-                            // AI Played Cards
+                            Text("Sum: \(gameEnv.agent1_round_cards.reduce(0, +))")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.yellow)
+                            
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 4) {
                                     ForEach(gameEnv.agent1_round_cards, id: \.self) { card in
                                         Text("\(card)")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .frame(width: 24, height: 32)
-                                            .background(Color.white.opacity(0.2))
-                                            .cornerRadius(4)
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.black)
+                                            .frame(width: 20, height: 28)
+                                            .background(Color.white.opacity(0.9))
+                                            .cornerRadius(3)
                                     }
                                 }
                             }
-                            .frame(height: 32)
+                            .frame(height: 28)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        Divider().background(Color.white.opacity(0.3))
+                        // Divider
+                        Rectangle()
+                            .fill(Color.white.opacity(0.2))
+                            .frame(width: 1, height: 50)
                         
-                        // Player Section
-                        VStack(alignment: .leading, spacing: 4) {
+                        // Player Stats (Right)
+                        VStack(alignment: .trailing, spacing: 4) {
                             HStack {
-                                Text("👤 You")
-                                    .font(.caption)
+                                Text("(\(gameEnv.agent2_wins) Wins)")
+                                    .font(.caption2)
                                     .foregroundColor(.white.opacity(0.7))
-                                Spacer()
-                                VStack(alignment: .trailing) {
-                                    Text("\(gameEnv.agent2_wins) Wins")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text("Sum: \(gameEnv.agent2_round_cards.reduce(0, +))")
-                                        .font(.caption)
-                                        .foregroundColor(.cyan)
-                                }
+                                Text("You 👤")
+                                    .font(.caption)
+                                    .bold()
+                                    .foregroundColor(.white.opacity(0.9))
                             }
                             
-                            // Player Played Cards
+                            Text("Sum: \(gameEnv.agent2_round_cards.reduce(0, +))")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.cyan)
+                            
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 4) {
                                     ForEach(gameEnv.agent2_round_cards, id: \.self) { card in
                                         Text("\(card)")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .frame(width: 24, height: 32)
-                                            .background(Color.white.opacity(0.2))
-                                            .cornerRadius(4)
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.black)
+                                            .frame(width: 20, height: 28)
+                                            .background(Color.white.opacity(0.9))
+                                            .cornerRadius(3)
                                     }
                                 }
                             }
-                            .frame(height: 32)
+                            .frame(height: 28)
+                            .environment(\.layoutDirection, .rightToLeft) // Scroll from right
                         }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(16)
-                    .shadow(radius: 10)
-                    .frame(maxWidth: 220)
-                    .ignoresSafeArea()
-                    Spacer()
                 }
                 .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+                .padding(.top, 60) // Add padding for status bar manually if not ignoring safe area, or use safe area inset
+                .background(
+                    LinearGradient(colors: [Color.black.opacity(0.8), Color.black.opacity(0.0)], startPoint: .top, endPoint: .bottom)
+                        .ignoresSafeArea()
+                )
                 
                 Spacer()
             }

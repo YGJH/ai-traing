@@ -105,23 +105,39 @@ struct ContentView: View {
                             .transition(.move(edge: .trailing))
                             .zIndex(1)
                     } else {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.35)) {
-                                showGame = true
+                        VStack(spacing: 20) {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.35)) {
+                                    showGame = true
+                                }
+                            } label: {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 20))
+                                Text("Start a new game")
+                                    .font(.system(size: 20))
                             }
-                        } label: {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 20))
-                            Text("Start a new game")
-                                .font(.system(size: 20))
+                            .foregroundStyle(Color(.black.withAlphaComponent(0.8)))
+                            .buttonStyle(.glass)
+                            
+                            Button {
+                                showSettings = true
+                            } label: {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: 20))
+                                Text("Settings")
+                                    .font(.system(size: 20))
+                            }
+                            .foregroundStyle(Color(.black.withAlphaComponent(0.8)))
+                            .buttonStyle(.glass)
                         }
-                        .foregroundStyle(Color(.black.withAlphaComponent(0.8)))
-                        .buttonStyle(.glass)
                     }
                 }
             }
         }
         .animation(.spring, value: hasCompletedOnboarding)
+        .sheet(isPresented: $showSettings) {
+            SettingsView(isPlayerFirst: $isPlayerFirst)
+        }
     }
 }
 
