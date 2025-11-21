@@ -57,7 +57,7 @@ class PPOAgent {
     let max_opponent_can_output: Int = 55
     init(
         action_dim: Int = 11,
-        hidden_size: Int = 12,
+        hidden_size: Int = 32,
         gamma: Float = 0.99,
         gae_lambda: Float = 0.95,
         clip_coef: Float = 0.2,
@@ -89,8 +89,8 @@ class PPOAgent {
         
         // Obtain a sample observation to determine input size without using self
         let (agent_obs1, _, _, _ , now_turn, _, _) = env.reset(agent_id: agent_id)
-        // Observation length = base obs (agent_obs1) + 4 derived scalars appended in convert_agent_obs_to_obs
-        let obs_dim = agent_obs1.count + 4
+        // Observation length = base obs (agent_obs1) + 6 derived scalars appended in convert_agent_obs_to_obs
+        let obs_dim = agent_obs1.count + 6
         self.trajectories = []
         // Initialize remaining state as desired
         self.turn = now_turn
@@ -182,10 +182,25 @@ class PPOAgent {
         // Convert to agent's observation format
         let ret = self.convert_agent_obs_to_obs(agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn);
         
-        // Forward pass
+        // --- Model Logic ---
         let (probs, value) = model.forward(x: ret)
-        action = argmax(probs)
         
+        // Simple masking to prevent invalid moves (optional but recommended)
+        // We can just use argmax for now as requested, but let's at least try to pick a valid one if the max is invalid?
+        // For now, restoring original behavior as requested:
+        let masked_probs = probs.enumerated().map { (i, p) in
+            // Check if action i is valid
+            if i < 10 {
+                // Card play action
+                return agent_obs1[i] == 1 ? p : -1000.0 // Can only play if card is not used
+            } else {
+                // Pass action is always valid
+                return p
+            }
+        }
+        action = argmax(masked_probs)
+        let prob = masked_probs[action]
+
         // Execute action in environment
         (agent_obs1, agent_obs2, agent1_has_passed, agent2_has_passed , now_turn, (agent1_reward, agent2_reward), fin) = env.step(agent_id: agent_id , action: action)
         
@@ -193,7 +208,7 @@ class PPOAgent {
         let traj = Trajectory(
             obs: ret,
             action: action,
-            logProb: probs[action],
+            logProb: log(prob + 1e-10), // Avoid log(0)
             value: value,
             reward: Float(self.agent_id ? agent1_reward : agent2_reward),
             done: fin
@@ -201,13 +216,27 @@ class PPOAgent {
         self.trajectories.append(traj)
         finished = fin
         
-        // Train if finished
-        if fin {
-            trainTRPO(trajectories: trajectories)
-            trajectories.removeAll() // Clear trajectories after training
-        }
+        // Note: Training is now triggered manually by GameView via train()
         
         return (action, finished)
+    }
+    
+    func train() {
+        if !trajectories.isEmpty {
+            print("🧠 Starting PPO Training with \(trajectories.count) steps...")
+            trainTRPO(trajectories: trajectories)
+            trajectories.removeAll()
+            
+            // Save model
+            do {
+                try model.save()
+                print("💾 Model saved successfully.")
+            } catch {
+                print("❌ Failed to save model: \(error)")
+            }
+            
+            print("✅ Training Complete.")
+        }
     }
     
     

@@ -10,9 +10,36 @@ import SwiftData
 
 
 
+struct SettingsView: View {
+    @Binding var isPlayerFirst: Bool
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Game Settings")) {
+                    Toggle("Player Goes First (Player is Agent 1)", isOn: $isPlayerFirst)
+                }
+                
+                Section(footer: Text("If enabled, you play as Agent 1 and go first.\nIf disabled, you play as Agent 2 and AI goes first.")) {
+                    EmptyView()
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar {
+                Button("Done") {
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+
 struct ContentView: View {
 
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
+    @AppStorage("isPlayerFirst") private var isPlayerFirst = true
+    @State private var showSettings = false
     
     let startWords = [
         "這是一個跟你的agent訓練的遊戲",
@@ -70,7 +97,11 @@ struct ContentView: View {
                     .ignoresSafeArea()
                     
                     if showGame {
-                        GameView()
+                        GameView(onBack: {
+                            withAnimation(.easeInOut(duration: 0.35)) {
+                                showGame = false
+                            }
+                        })
                             .transition(.move(edge: .trailing))
                             .zIndex(1)
                     } else {

@@ -8,18 +8,14 @@
 import SwiftUI
 
 struct Card: View {
-    @Binding var isUsed: Bool
+    @Binding var isVisible: Bool
     let xOffset: CGFloat
     let yOffset: CGFloat
     let number: Int
-    
-    let width: CGFloat = 80
-    let height: CGFloat = 130
-    let thick: CGFloat = 4
     let rotate: Double
 
     init(isUsed: Binding<Bool>, xOffset: CGFloat, yOffset: CGFloat, number: Int, rotate: Double = 0.1) {
-        self._isUsed = isUsed
+        self._isVisible = isUsed
         self.xOffset = xOffset
         self.yOffset = yOffset
         self.number = number
@@ -27,44 +23,74 @@ struct Card: View {
     }
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(isUsed ? Color.blue.opacity(1) : Color.white.opacity(0))
-                .frame(width: width, height: height)
-                .overlay(
-                    Text(isUsed ? "" : "Used")
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                )
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .rotationEffect(.degrees(rotate))
-                .offset(x: xOffset, y: yOffset)
-                .overlay {
+        Group {
+            if isVisible {
+                ZStack {
+                    // Card Base
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 2, y: 4)
+                    
+                    // Border
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    
+                    // Center Number
                     Text("\(number)")
-                        .font(Font.largeTitle.bold())
-                        .foregroundStyle(Color.white)
-                        .offset(x: xOffset, y: yOffset)
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.indigo, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    
+                    // Corner Numbers
+                    VStack {
+                        HStack {
+                            Text("\(number)")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Text("\(number)")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .rotationEffect(.degrees(180))
+                        }
+                    }
+                    .padding(6)
                 }
-                .zIndex(1)
-            
-            
-            RoundedRectangle(cornerRadius: 20)
-                .fill(isUsed ? Color.yellow.opacity(0.6) : Color.white.opacity(0))
-                .frame(width: width+thick , height: height + thick)
-                .overlay(
-                    Text(isUsed ? "USED" : "")
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                )
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .frame(width: 90, height: 140)
                 .rotationEffect(.degrees(rotate))
                 .offset(x: xOffset, y: yOffset)
-
+                .transition(.scale.combined(with: .opacity))
+            } else {
+                // Placeholder for used card
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6]))
+                    .foregroundColor(.white.opacity(0.15))
+                    .frame(width: 90, height: 140)
+                    .rotationEffect(.degrees(rotate))
+                    .offset(x: xOffset, y: yOffset)
+            }
         }
     }
 }
 
 struct GameView: View {
+    let onBack: () -> Void
+    let isPlayerFirst: Bool
+    
+    init(onBack: @escaping () -> Void, isPlayerFirst: Bool = true) {
+        self.onBack = onBack
+        self.isPlayerFirst = isPlayerFirst
+    }
+    
     // 卡片數量
     private let cardCount: Int = 10
 
@@ -93,15 +119,79 @@ struct GameView: View {
     // Lock UI during AI turn
     @State private var isProcessingTurn = false
     
+    // Game Status Display
+    @State private var playerLastMove: String = "-"
+    @State private var aiLastMove: String = "-"
+    @State private var aiCardNumber: Int? = nil
+    
+    // Training State
+    @State private var isTraining = false
+    
+    // Game Over Alert
+    @State private var showGameOverAlert = false
+    @State private var gameOverMessage = ""
+    
+    func handleGameEnd() {
+        print("🏁 Game Finished. Starting Training...")
+        isTraining = true
+        
+        Task {
+            // Allow UI to update to show "Training..."
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+            
+            if let agent = agent {
+                // Run training on background thread to prevent UI freeze
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        agent.train()
+                        continuation.resume()
+                    }
+                }
+            }
+            
+            await MainActor.run {
+                isTraining = false
+                let winner = gameEnv.agent1_wins > gameEnv.agent2_wins ? "AI Wins!" : (gameEnv.agent2_wins > gameEnv.agent1_wins ? "You Win!" : "Draw!")
+                
+                // Include last round score in the final message
+                let lastRoundInfo = "\nRound \(gameEnv.lastRoundNumber) Score: AI \(gameEnv.lastRoundScores.0) - \(gameEnv.lastRoundScores.1) You"
+                
+                gameOverMessage = "\(winner)\nFinal Score: AI \(gameEnv.agent1_wins) - \(gameEnv.agent2_wins) You\(lastRoundInfo)"
+                showGameOverAlert = true
+            }
+        }
+    }
+    
+    func resetGame() {
+        print("🔄 Resetting Game...")
+        let _ = gameEnv.reset(agent_id: agent_id)
+        already_pass = false
+        playerLastMove = "-"
+        aiLastMove = "-"
+        aiCardNumber = nil
+        agent?.hidden = nil
+        
+        if !agent_id {
+             runAITurn()
+        }
+    }
+
     func handlePlayerMove(action: Int) {
         guard !isProcessingTurn else { return }
         
+        // Update UI
+        playerLastMove = (action == 10) ? "Pass" : "\(action + 1)"
+        
         print("👤 Player move: \(action)")
         // 1. Player executes step
-        let (_, _, _, _, _, _, finished) = gameEnv.step(agent_id: agent_id, action: action)
+        let (_, _, _, agent2Passed, _, _, finished) = gameEnv.step(agent_id: agent_id, action: action)
+        
+        // Sync already_pass with env state (handles round reset)
+        already_pass = agent2Passed
         
         if finished {
             print("🏁 Game Over after Player move")
+            handleGameEnd()
             return
         }
         
@@ -113,111 +203,325 @@ struct GameView: View {
         isProcessingTurn = true
         agent_thinking = true
         
-        Task {
+        // 使用 Task { @MainActor in ... } 確保在主執行緒執行
+        Task { @MainActor in
+            // Check if AI has already passed
+            let (_, _, aiPassed, _, _, _, _) = gameEnv.get_obs()
+            
+            if aiPassed {
+                print("🤖 AI has already passed. Skipping turn.")
+                agent_thinking = false
+                isProcessingTurn = false
+                
+                // If player passed too, round might end here? 
+                // Actually if AI passed, it means it passed in previous turn.
+                // If Player just passed, then round ends in handlePlayerMove.
+                // So we shouldn't be here if round ended.
+                // But if Player played a card, and AI passed previously, AI skips.
+                return
+            }
+
             // Delay for UX
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
             
             if let agent = agent {
                 // AI executes step internally
                 let (aiAction, finished) = agent.step_one()
+                
+                // Update UI
+                aiLastMove = (aiAction == 10) ? "Pass" : "\(aiAction + 1)"
+                
+                if aiAction < 10 {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        aiCardNumber = aiAction + 1
+                    }
+                } else {
+                    withAnimation {
+                        aiCardNumber = nil
+                    }
+                }
+                
                 print("🤖 AI executed action: \(aiAction)")
                 
-                await MainActor.run {
+                // Sync already_pass after AI move (in case round ended due to AI pass)
+                let (_, _, _, agent2Passed, _, _, _) = gameEnv.get_obs()
+                already_pass = agent2Passed
+                
+                if finished {
+                    print("🏁 Game Over after AI move")
                     agent_thinking = false
                     isProcessingTurn = false
-                    if finished {
-                        print("🏁 Game Over after AI move")
+                    handleGameEnd()
+                } else {
+                    // If Player has passed, AI continues playing automatically
+                    if already_pass {
+                        print("🔄 Player passed, AI continues...")
+                        runAITurn() // Recursive call for next AI turn
+                    } else {
+                        agent_thinking = false
+                        isProcessingTurn = false
                     }
                 }
             } else {
-                await MainActor.run {
-                    isProcessingTurn = false
-                    agent_thinking = false
-                }
+                isProcessingTurn = false
+                agent_thinking = false
             }
         }
     }
     
     var body: some View {
-            ZStack(alignment: .topTrailing) {
-                Color.white.ignoresSafeArea()
-
+        ZStack(alignment: .top) {
+            // Background
+            LinearGradient(
+                gradient: Gradient(colors: [Color(red: 0.05, green: 0.3, blue: 0.15), Color(red: 0.0, green: 0.15, blue: 0.05)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
+            // AI Card Display
+            if let aiCard = aiCardNumber {
                 ZStack {
-                    ForEach(Array(0..<cardCount), id: \.self) { i in
-                        // 安全防護：避免陣列越界
-                        let x = i < xOffsets.count ? xOffsets[i] : 0
-                        let y = i < yOffsets.count ? yOffsets[i] : 0
-                        let r = i < rotateTion.count ? rotateTion[i] : 0
+                    // Glow effect
+                    Circle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(width: 120, height: 120)
+                        .blur(radius: 20)
+                    
+                    Card(isUsed: .constant(true), xOffset: 0, yOffset: 0, number: aiCard, rotate: 0)
+                        .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
+                .zIndex(60)
+            }
+            
+            ZStack {
+                ForEach(Array(0..<cardCount), id: \.self) { i in
+                    // 安全防護：避免陣列越界
+                    let x = i < xOffsets.count ? xOffsets[i] : 0
+                    let y = i < yOffsets.count ? yOffsets[i] : 0
+                    let r = i < rotateTion.count ? rotateTion[i] : 0
+                    
+                    // Map Float (0/1) to Bool binding:
+                    // Treat 0 as "used" (true), 1 as "not used" (false)
+                    let isUsedBinding = Binding<Bool>(
+                        get: {
+                            guard i < gameEnv.obs_agent2.count else { return false }
+                            return gameEnv.obs_agent2[i] == 1  // 1 = unused (show blue), 0 = used (transparent)
+                        },
+                        set: { newValue in
+                            guard i < gameEnv.obs_agent2.count else { return }
+                            gameEnv.obs_agent2[i] = newValue ? 1 : 0
+                        }
+                    )
+                    
+                    ZStack {
+                        Card(isUsed: isUsedBinding, xOffset: x, yOffset: y, number: i + 1, rotate: r)
                         
-                        // Map Float (0/1) to Bool binding:
-                        // Treat 0 as "used" (true), 1 as "not used" (false)
-                        let isUsedBinding = Binding<Bool>(
-                            get: {
-                                guard i < gameEnv.obs_agent2.count else { return false }
-                                return gameEnv.obs_agent2[i] == 1  // 1 = unused (show blue), 0 = used (transparent)
-                            },
-                            set: { newValue in
-                                guard i < gameEnv.obs_agent2.count else { return }
-                                gameEnv.obs_agent2[i] = newValue ? 1 : 0
-                            }
-                        )
-                        
-                        ZStack {
-                            Card(isUsed: isUsedBinding, xOffset: x, yOffset: y, number: i + 1, rotate: r)
-                            
-                            // Invisible overlay for tap detection
-                            Rectangle()
-                                .fill(Color.clear)
-                                .contentShape(Rectangle())
-                                .frame(width: 100, height: 150)
-                                .offset(x: x, y: y)
-                                .onTapGesture {
-                                    if isProcessingTurn { return }
-                                    
-                                    print("🔥 Card \(i+1) tapped! Current value: \(gameEnv.obs_agent2[i])")
-                                    
-                                    if gameEnv.obs_agent2[i] == 0 {
-                                        print("❌ Card \(i+1) already used")
-                                    }
-                                    else if self.already_pass {
-                                        alertTitle = "Not allowed"
-                                        alertMessage = "You cannot output card in this turn."
-                                        showAlert = true
-                                    }
-                                    else if gameEnv.obs_agent2[i] == 1 {
-                                        withAnimation(.easeInOut) {
-                                            handlePlayerMove(action: i)
-                                        }
+                        // Invisible overlay for tap detection
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                            .frame(width: 90, height: 140) // Match new card size
+                            .offset(x: x, y: y)
+                            .onTapGesture {
+                                if isProcessingTurn { return }
+                                
+                                print("🔥 Card \(i+1) tapped! Current value: \(gameEnv.obs_agent2[i])")
+                                
+                                if gameEnv.obs_agent2[i] == 0 {
+                                    print("❌ Card \(i+1) already used")
+                                }
+                                else if self.already_pass {
+                                    alertTitle = "Not allowed"
+                                    alertMessage = "You cannot output card in this turn."
+                                    showAlert = true
+                                }
+                                else if gameEnv.obs_agent2[i] == 1 {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                                        handlePlayerMove(action: i)
                                     }
                                 }
-                        }
+                            }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                Button {
-                    if isProcessingTurn { return }
-                    print("🔘 Pass button tapped")
-                    already_pass = true
-                    handlePlayerMove(action: 10) // 10 is Pass
-                } label: {
-                    Text("Pass")
-                }
-                .buttonStyle(.borderedProminent)
-                .padding(30)
-                .zIndex(100)
-                .disabled(isProcessingTurn) // Disable button when AI is thinking
-                
-                if agent_thinking {
-                    ProgressView("AI Thinking...")
-                        .padding()
-                        .background(Color.white.opacity(0.8))
-                        .cornerRadius(10)
-                        .zIndex(200)
-                }
             }
-            .onAppear {
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Top UI Layer: Buttons & Status Board
+            VStack(spacing: 10) {
+                // Row 1: Back Button & Pass Button
+                HStack {
+                    // Back Button
+                    Button {
+                        print("🔙 Back button tapped")
+                        onBack()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 36))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.white)
+                            .shadow(radius: 4)
+                    }
+//                    .border(.red)
+                    Spacer()
+                    // Pass Button
+                    Button {
+                        if isProcessingTurn { return }
+                        print("🔘 Pass button tapped")
+                        already_pass = true
+                        handlePlayerMove(action: 10) // 10 is Pass
+                    } label: {
+                        Text("PASS")
+                            .font(.headline)
+                            .tracking(2)
+                            .frame(width: 100, height: 40)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .shadow(color: .orange.opacity(0.5), radius: 10, x: 0, y: 5)
+                    .disabled(isProcessingTurn)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 50) // Safe area top
+                
+                // Row 2: Status Board (Aligned Left)
+                HStack {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "flag.checkered.2.crossed")
+                                .foregroundColor(.yellow)
+                            Text("Round \(gameEnv.round) / 3")
+                                .font(.title3.bold())
+                                .foregroundColor(.white)
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.3))
+                        
+                        // AI Section
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("🤖 AI")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                                Spacer()
+                                VStack(alignment: .trailing) {
+                                    Text("\(gameEnv.agent1_wins) Wins")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    Text("Sum: \(gameEnv.agent1_round_cards.reduce(0, +))")
+                                        .font(.caption)
+                                        .foregroundColor(.yellow)
+                                }
+                            }
+                            
+                            // AI Played Cards
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 4) {
+                                    ForEach(gameEnv.agent1_round_cards, id: \.self) { card in
+                                        Text("\(card)")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(width: 24, height: 32)
+                                            .background(Color.white.opacity(0.2))
+                                            .cornerRadius(4)
+                                    }
+                                }
+                            }
+                            .frame(height: 32)
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.3))
+                        
+                        // Player Section
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("👤 You")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                                Spacer()
+                                VStack(alignment: .trailing) {
+                                    Text("\(gameEnv.agent2_wins) Wins")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    Text("Sum: \(gameEnv.agent2_round_cards.reduce(0, +))")
+                                        .font(.caption)
+                                        .foregroundColor(.cyan)
+                                }
+                            }
+                            
+                            // Player Played Cards
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 4) {
+                                    ForEach(gameEnv.agent2_round_cards, id: \.self) { card in
+                                        Text("\(card)")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(width: 24, height: 32)
+                                            .background(Color.white.opacity(0.2))
+                                            .cornerRadius(4)
+                                    }
+                                }
+                            }
+                            .frame(height: 32)
+                        }
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(16)
+                    .shadow(radius: 10)
+                    .frame(maxWidth: 220)
+                    .ignoresSafeArea()
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                
+                Spacer()
+            }
+            .zIndex(50)
+            
+            if agent_thinking {
+                VStack {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(.white)
+                    Text("AI Thinking...")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.top, 10)
+                }
+                .padding(30)
+                .background(.ultraThinMaterial)
+                .cornerRadius(20)
+                .zIndex(200)
+            }
+            
+            if isTraining {
+                ZStack {
+                    Color.black.opacity(0.6).ignoresSafeArea()
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(2.0)
+                            .tint(.white)
+                        Text("Training Model...")
+                            .font(.title)
+                            .bold()
+                            .foregroundColor(.white)
+                        Text("Learning from this match")
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .padding(50)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(25)
+                    .shadow(radius: 20)
+                }
+                .zIndex(300)
+            }
+        }
+        .onAppear {
                 if agent == nil {
+                    print("aaa")
                     agent = PPOAgent(
                         action_dim: 11,
                         hidden_size: 64,
@@ -233,13 +537,14 @@ struct GameView: View {
                         turn: 0,
                         env: gameEnv
                     )
-                    
+//
                     // Check who goes first
                     // If agent_id (Player) is true, Player goes first.
                     // If agent_id (Player) is false, AI goes first.
                     if !agent_id {
                         print("🤖 AI goes first!")
                         runAITurn()
+                        
                     } else {
                         print("👤 Player goes first!")
                     }
@@ -250,9 +555,29 @@ struct GameView: View {
             } message: {
                 Text(alertMessage)
             }
+            .alert("Round \(gameEnv.lastRoundNumber) Result", isPresented: $gameEnv.showRoundResult) {
+                Button("Next Round", role: .cancel) { 
+                    // If we are entering Round 3, trigger Auto Showdown
+                    if gameEnv.round == 3 {
+                        gameEnv.resolveShowdown()
+                        handleGameEnd()
+                    }
+                }
+            } message: {
+                Text("AI: \(gameEnv.lastRoundScores.0) - You: \(gameEnv.lastRoundScores.1)")
+            }
+            .alert("Game Over", isPresented: $showGameOverAlert) {
+                Button("Play Again", role: .cancel) {
+                    resetGame()
+                }
+            } message: {
+                Text(gameOverMessage)
+            }
     }
 }
 
 #Preview {
-    GameView()
+    GameView(onBack: {
+        print("Back tapped in Preview")
+    })
 }
