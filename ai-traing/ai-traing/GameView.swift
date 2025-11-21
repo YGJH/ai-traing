@@ -86,7 +86,7 @@ struct GameView: View {
     let onBack: () -> Void
     let isPlayerFirst: Bool
     
-    init(onBack: @escaping () -> Void, isPlayerFirst: Bool = true) {
+    init(onBack: @escaping () -> Void, isPlayerFirst: Bool) {
         self.onBack = onBack
         self.isPlayerFirst = isPlayerFirst
     }
@@ -120,6 +120,8 @@ struct GameView: View {
     @AppStorage("entropy_coef") private var entropy_coef: Double = 0.01
     @AppStorage("learning_rate") private var learning_rate: Double = 0.0003
     @AppStorage("train_epochs") private var train_epochs: Int = 4
+    @AppStorage("hidden_size") private var hidden_size: Int = 64
+    @AppStorage("hidden_layers") private var hidden_layers: Int = 3
     
     // Alert state
     @State private var showAlert = false
@@ -133,6 +135,7 @@ struct GameView: View {
     @State private var playerLastMove: String = "-"
     @State private var aiLastMove: String = "-"
     @State private var aiCardNumber: Int? = nil
+    @State private var showAIPassMessage: Bool = false
     
     // Training State
     @State private var isTraining = false
@@ -161,12 +164,27 @@ struct GameView: View {
             
             await MainActor.run {
                 isTraining = false
-                let winner = gameEnv.agent1_wins > gameEnv.agent2_wins ? "AI Wins!" : (gameEnv.agent2_wins > gameEnv.agent1_wins ? "You Win!" : "Draw!")
+                
+                // Determine winner based on agent_id (Player's identity)
+                // If agent_id is true, Player is Agent 1.
+                // If agent_id is false, Player is Agent 2.
+                
+                let playerWins = agent_id ? (gameEnv.agent1_wins > gameEnv.agent2_wins) : (gameEnv.agent2_wins > gameEnv.agent1_wins)
+                let aiWins = agent_id ? (gameEnv.agent2_wins > gameEnv.agent1_wins) : (gameEnv.agent1_wins > gameEnv.agent2_wins)
+                
+                let winner = playerWins ? "You Win!" : (aiWins ? "AI Wins!" : "Draw!")
                 
                 // Include last round score in the final message
-                let lastRoundInfo = "\nRound \(gameEnv.lastRoundNumber) Score: AI \(gameEnv.lastRoundScores.0) - \(gameEnv.lastRoundScores.1) You"
+                // Scores are (Agent1, Agent2)
+                let aiScore = agent_id ? gameEnv.lastRoundScores.1 : gameEnv.lastRoundScores.0
+                let playerScore = agent_id ? gameEnv.lastRoundScores.0 : gameEnv.lastRoundScores.1
                 
-                gameOverMessage = "\(winner)\nFinal Score: AI \(gameEnv.agent1_wins) - \(gameEnv.agent2_wins) You\(lastRoundInfo)"
+                let lastRoundInfo = "\nRound \(gameEnv.lastRoundNumber) Score: AI \(aiScore) - \(playerScore) You"
+                
+                let aiTotalWins = agent_id ? gameEnv.agent2_wins : gameEnv.agent1_wins
+                let playerTotalWins = agent_id ? gameEnv.agent1_wins : gameEnv.agent2_wins
+                
+                gameOverMessage = "\(winner)\nFinal Score: AI \(aiTotalWins) - \(playerTotalWins) You\(lastRoundInfo)"
                 showGameOverAlert = true
             }
         }
@@ -240,7 +258,7 @@ struct GameView: View {
             
             if let agent = agent {
                 // AI executes step internally
-                let (aiAction, finished) = agent.step_one()
+                let (aiAction, finished, _) = agent.step_one(deterministic: true)
                 
                 // Update UI
                 aiLastMove = (aiAction == 10) ? "Pass" : "\(aiAction + 1)"
@@ -250,8 +268,18 @@ struct GameView: View {
                         aiCardNumber = aiAction + 1
                     }
                 } else {
+                    // AI passed - show Pass message
                     withAnimation {
                         aiCardNumber = nil
+                        showAIPassMessage = true
+                    }
+                    
+                    // Hide Pass message after 2 seconds
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        withAnimation {
+                            showAIPassMessage = false
+                        }
                     }
                 }
                 
@@ -312,6 +340,46 @@ struct GameView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                 .zIndex(60)
+            }
+            
+            // AI Pass Message Display
+            if showAIPassMessage {
+                ZStack {
+                    // Background blur
+                    RoundedRectangle(cornerRadius: 30)
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 250, height: 150)
+                        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+                    
+                    VStack(spacing: 10) {
+                        Image(systemName: "hand.raised.fill")
+                            .font(.system(size: 50))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.orange, .red],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        
+                        Text("PASS")
+                            .font(.system(size: 40, weight: .black, design: .rounded))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.orange, .red],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                        
+                        Text("AI Passed")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .transition(.scale.combined(with: .opacity))
+                .zIndex(65)
             }
             
             ZStack {
@@ -438,18 +506,18 @@ struct GameView: View {
                                     .font(.caption)
                                     .bold()
                                     .foregroundColor(.white.opacity(0.9))
-                                Text("(\(gameEnv.agent1_wins) Wins)")
+                                Text("(\(agent_id ? gameEnv.agent2_wins : gameEnv.agent1_wins) Wins)")
                                     .font(.caption2)
                                     .foregroundColor(.white.opacity(0.7))
                             }
                             
-                            Text("Sum: \(gameEnv.agent1_round_cards.reduce(0, +))")
+                            Text("Sum: \((agent_id ? gameEnv.agent2_round_cards : gameEnv.agent1_round_cards).reduce(0, +))")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.yellow)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 4) {
-                                    ForEach(gameEnv.agent1_round_cards, id: \.self) { card in
+                                    ForEach((agent_id ? gameEnv.agent2_round_cards : gameEnv.agent1_round_cards), id: \.self) { card in
                                         Text("\(card)")
                                             .font(.system(size: 10, weight: .bold))
                                             .foregroundColor(.black)
@@ -471,7 +539,7 @@ struct GameView: View {
                         // Player Stats (Right)
                         VStack(alignment: .trailing, spacing: 4) {
                             HStack {
-                                Text("(\(gameEnv.agent2_wins) Wins)")
+                                Text("(\(agent_id ? gameEnv.agent1_wins : gameEnv.agent2_wins) Wins)")
                                     .font(.caption2)
                                     .foregroundColor(.white.opacity(0.7))
                                 Text("You 👤")
@@ -480,13 +548,13 @@ struct GameView: View {
                                     .foregroundColor(.white.opacity(0.9))
                             }
                             
-                            Text("Sum: \(gameEnv.agent2_round_cards.reduce(0, +))")
+                            Text("Sum: \((agent_id ? gameEnv.agent1_round_cards : gameEnv.agent2_round_cards).reduce(0, +))")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.cyan)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 4) {
-                                    ForEach(gameEnv.agent2_round_cards, id: \.self) { card in
+                                    ForEach((agent_id ? gameEnv.agent1_round_cards : gameEnv.agent2_round_cards), id: \.self) { card in
                                         Text("\(card)")
                                             .font(.system(size: 10, weight: .bold))
                                             .foregroundColor(.black)
@@ -553,11 +621,13 @@ struct GameView: View {
             }
         }
         .onAppear {
+                print("🎮 GameView appeared. isPlayerFirst: \(isPlayerFirst), agent_id: \(agent_id)")
                 if agent == nil {
                     print("aaa")
                     agent = PPOAgent(
                         action_dim: 11,
-                        hidden_size: 64,
+                        hidden_size: hidden_size,
+                        hidden_layers: hidden_layers,
                         gamma: 0.95,
                         gae_lambda: Float(gae_lambda),
                         clip_coef: 0.2,
@@ -597,7 +667,10 @@ struct GameView: View {
                     }
                 }
             } message: {
-                Text("AI: \(gameEnv.lastRoundScores.0) - You: \(gameEnv.lastRoundScores.1)")
+                // Correctly display scores based on who is who
+                let aiScore = agent_id ? gameEnv.lastRoundScores.1 : gameEnv.lastRoundScores.0
+                let playerScore = agent_id ? gameEnv.lastRoundScores.0 : gameEnv.lastRoundScores.1
+                Text("AI: \(aiScore) - You: \(playerScore)")
             }
             .alert("Game Over", isPresented: $showGameOverAlert) {
                 Button("Play Again", role: .cancel) {
@@ -612,5 +685,5 @@ struct GameView: View {
 #Preview {
     GameView(onBack: {
         print("Back tapped in Preview")
-    })
+    }, isPlayerFirst: true)
 }

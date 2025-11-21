@@ -35,6 +35,7 @@ class AIEnv: ObservableObject {
     // Track cards played in the current round
     @Published var agent1_round_cards: [Int] = []
     @Published var agent2_round_cards: [Int] = []
+    @Published var last_reward: (Float, Float) = (0.0, 0.0)
     
     init() {
         self.obs_agent1 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -76,6 +77,8 @@ class AIEnv: ObservableObject {
     }
     
     func step(agent_id: Bool, action: Int) -> ([Float], [Float],Bool, Bool, Int, (Float, Float), Bool) {
+        var reward: (Float, Float) = (0.0, 0.0)
+        
         // Apply action
         if agent_id { // Agent 1
             if action < 10 {
@@ -83,6 +86,7 @@ class AIEnv: ObservableObject {
                 agent1_round_cards.append(action + 1)
             } else {
                 agent1_has_passed = true
+                reward.0 -= 0.1 // Penalty for passing
             }
         } else { // Agent 2
             if action < 10 {
@@ -90,10 +94,9 @@ class AIEnv: ObservableObject {
                 agent2_round_cards.append(action + 1)
             } else {
                 agent2_has_passed = true
+                reward.1 -= 0.1 // Penalty for passing
             }
         }
-        
-        var reward: (Float, Float) = (0.0, 0.0)
         
         // Check for Round End
         if agent1_has_passed && agent2_has_passed {
@@ -108,15 +111,19 @@ class AIEnv: ObservableObject {
             
             print("End of Round \(round). Scores: Agent1=\(round_score1), Agent2=\(round_score2)")
             
+            let score_diff = Float(round_score1 - round_score2)
+            let scaled_diff = score_diff / 55.0
+            
             if round_score1 > round_score2 {
                 agent1_wins += 1
-                reward = (1.0, -1.0)
+                reward.0 += (1.0 + scaled_diff)
+                reward.1 += (-1.0 - scaled_diff)
             } else if round_score2 > round_score1 {
                 agent2_wins += 1
-                reward = (-1.0, 1.0)
+                reward.0 += (-1.0 + scaled_diff)
+                reward.1 += (1.0 - scaled_diff)
             } else {
                 // Draw
-                reward = (0.0, 0.0)
             }
             
             // Update history
@@ -146,6 +153,7 @@ class AIEnv: ObservableObject {
             }
         }
         
+        self.last_reward = reward
         return (obs_agent1, obs_agent2, agent1_has_passed, agent2_has_passed, round, reward, fin)
     }
 
