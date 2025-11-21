@@ -113,6 +113,14 @@ struct GameView: View {
     var agent_id: Bool { isPlayerFirst }
     
     @State var  agent_thinking = false;
+    
+    // PPO Settings
+    @AppStorage("gae_lambda") private var gae_lambda: Double = 0.95
+    @AppStorage("value_coef") private var value_coef: Double = 0.5
+    @AppStorage("entropy_coef") private var entropy_coef: Double = 0.01
+    @AppStorage("learning_rate") private var learning_rate: Double = 0.0003
+    @AppStorage("train_epochs") private var train_epochs: Int = 4
+    
     // Alert state
     @State private var showAlert = false
     @State private var alertTitle: String = "Not allowed"
@@ -551,12 +559,12 @@ struct GameView: View {
                         action_dim: 11,
                         hidden_size: 64,
                         gamma: 0.95,
-                        gae_lambda: 0.95,
+                        gae_lambda: Float(gae_lambda),
                         clip_coef: 0.2,
-                        value_coef: 0.5,
-                        entropy_coef: 0.01,
-                        lr: 3e-4,
-                        train_epochs: 4,
+                        value_coef: Float(value_coef),
+                        entropy_coef: Float(entropy_coef),
+                        lr: learning_rate,
+                        train_epochs: train_epochs,
                         max_grad_norm: 0.5,
                         agent_id: ((agent_id) ? false : true),
                         turn: 0,

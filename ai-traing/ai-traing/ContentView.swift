@@ -14,11 +14,46 @@ struct SettingsView: View {
     @Binding var isPlayerFirst: Bool
     @Environment(\.dismiss) var dismiss
     
+    // PPO Hyperparameters
+    @AppStorage("gae_lambda") private var gae_lambda: Double = 0.95
+    @AppStorage("value_coef") private var value_coef: Double = 0.5
+    @AppStorage("entropy_coef") private var entropy_coef: Double = 0.01
+    @AppStorage("learning_rate") private var learning_rate: Double = 0.0003
+    @AppStorage("train_epochs") private var train_epochs: Int = 4
+    
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("Game Settings")) {
                     Toggle("Player Goes First (Player is Agent 1)", isOn: $isPlayerFirst)
+                }
+                
+                Section(header: Text("PPO Hyperparameters")) {
+                    VStack(alignment: .leading) {
+                        Text("GAE Lambda: \(gae_lambda, specifier: "%.2f")")
+                        Slider(value: $gae_lambda, in: 0.8...1.0, step: 0.01)
+                    }
+                    
+                    VStack(alignment: .leading) {
+                        Text("Value Coef: \(value_coef, specifier: "%.2f")")
+                        Slider(value: $value_coef, in: 0.1...1.0, step: 0.1)
+                    }
+                    
+                    VStack(alignment: .leading) {
+                        Text("Entropy Coef: \(entropy_coef, specifier: "%.3f")")
+                        Slider(value: $entropy_coef, in: 0.0...0.1, step: 0.001)
+                    }
+                    
+                    HStack {
+                        Text("Learning Rate")
+                        Spacer()
+                        TextField("LR", value: $learning_rate, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 100)
+                    }
+                    
+                    Stepper("Train Epochs: \(train_epochs)", value: $train_epochs, in: 1...20)
                 }
                 
                 Section(footer: Text("If enabled, you play as Agent 1 and go first.\nIf disabled, you play as Agent 2 and AI goes first.")) {
