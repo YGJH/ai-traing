@@ -430,10 +430,13 @@ struct GameView: View {
                 
                 if playerWins {
                     winnerName = "You Win!"
+                    SoundManager.shared.playSound(named: "victory")
                 } else if aiWins {
                     winnerName = "AI Wins!"
+                    SoundManager.shared.playSound(named: "loss")
                 } else {
                     winnerName = "Draw!"
+                    SoundManager.shared.playSound(named: "loss") // Or maybe a draw sound if available, defaulting to loss or victory or nothing
                 }
                 
                 finalScorePlayer = agent_id ? gameEnv.agent1_wins : gameEnv.agent2_wins
@@ -482,6 +485,11 @@ struct GameView: View {
     func handlePlayerMove(action: Int) {
         guard !isProcessingTurn else { return }
         stopTimer()
+        
+        // Play sound for card placement (if not passing)
+        if action < 10 {
+            SoundManager.shared.playSound(named: "putcard")
+        }
         
         // Update UI
         playerLastMove = (action == 10) ? "Pass" : "\(action + 1)"
@@ -536,6 +544,11 @@ struct GameView: View {
             if let agent = agent {
                 // AI executes step internally
                 let (aiAction, finished, _) = agent.step_one(deterministic: true)
+                
+                // Play sound for AI card placement
+                if aiAction < 10 {
+                    SoundManager.shared.playSound(named: "putcard")
+                }
                 
                 // Update UI
                 aiLastMove = (aiAction == 10) ? "Pass" : "\(aiAction + 1)"

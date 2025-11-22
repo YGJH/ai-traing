@@ -418,6 +418,9 @@ class PPOAgent {
             // Let's stick to Agent 1 starts for now.
             var current_turn_agent_id = true 
             
+            // 50% chance to play against Heuristic (Deterministic), 50% against Self (Stochastic)
+            let useHeuristic = Bool.random()
+            
             while !fin {
                 // Get current pass states
                 let (_, _, ag1Passed, ag2Passed, _, _, f) = self.env.get_obs()
@@ -445,21 +448,37 @@ class PPOAgent {
                         // Heuristic opponent doesn't track trajectories, so no update needed for it
                     }
                 } else {
-                    // Opponent acts (Heuristic Strategy)
-                    let action = self.heuristic_action(agent_id: acting_agent_id)
-                    
-                    // Execute directly in env
-                    let old_turn = now_turn
-                    let (_, _, _, _, new_turn, _, finished) = self.env.step(agent_id: acting_agent_id, action: action)
-                    fin = finished
-                    let roundEnded = (new_turn != old_turn) || fin
-                    
-                    if roundEnded {
-                        // Opponent caused round end. Self (who passed) needs reward update.
-                        let myReward = self.agent_id ? self.env.last_reward.0 : self.env.last_reward.1
-                        if let lastTraj = self.trajectories.last {
-                            lastTraj.reward += myReward
-                            lastTraj.done = fin
+                    // Opponent acts
+                    if useHeuristic {
+                        // Heuristic Strategy (Deterministic)
+                        let action = self.heuristic_action(agent_id: acting_agent_id)
+                        
+                        // Execute directly in env
+                        let old_turn = now_turn
+                        let (_, _, _, _, new_turn, _, finished) = self.env.step(agent_id: acting_agent_id, action: action)
+                        fin = finished
+                        let roundEnded = (new_turn != old_turn) || fin
+                        
+                        if roundEnded {
+                            // Opponent caused round end. Self (who passed) needs reward update.
+                            let myReward = self.agent_id ? self.env.last_reward.0 : self.env.last_reward.1
+                            if let lastTraj = self.trajectories.last {
+                                lastTraj.reward += myReward
+                                lastTraj.done = fin
+                            }
+                        }
+                    } else {
+                        // Self-Play (Stochastic)
+                        let (_, finished, roundEnded) = opponent.step_one(deterministic: false)
+                        fin = finished
+                        
+                        if roundEnded {
+                            // Opponent caused round end. Self (who passed) needs reward update.
+                            let myReward = self.agent_id ? self.env.last_reward.0 : self.env.last_reward.1
+                            if let lastTraj = self.trajectories.last {
+                                lastTraj.reward += myReward
+                                lastTraj.done = fin
+                            }
                         }
                     }
                 }
@@ -477,9 +496,8 @@ class PPOAgent {
             trainPPOClip(trajectories: self.trajectories)
             self.trajectories.removeAll()
             
-            // Opponent is heuristic, no training needed
-            // trainPPOClip(trajectories: opponent.trajectories)
-            // opponent.trajectories.removeAll()
+            // Clear opponent trajectories (used in self-play mode)
+            opponent.trajectories.removeAll()
             
             // Update progress
             onProgress?(episode + 1, episodeReward)

@@ -17,6 +17,8 @@ struct SettingsView: View {
     @Binding var isPlayerFirst: Bool
     @Environment(\.dismiss) var dismiss
     
+    @AppStorage("isSoundEnabled") private var isSoundEnabled = true
+    
     // PPO Hyperparameters
     @AppStorage("gae_lambda") private var gae_lambda: Double = 0.95
     @AppStorage("value_coef") private var value_coef: Double = 0.5
@@ -31,6 +33,7 @@ struct SettingsView: View {
             Form {
                 Section(header: Text("Game Settings")) {
                     Toggle("Player Goes First (Player is Agent 1)", isOn: $isPlayerFirst)
+                    Toggle("Enable Sound Effects", isOn: $isSoundEnabled)
                 }
                 
                 Section(header: Text("Model Architecture")) {
@@ -711,9 +714,12 @@ class SoundManager {
     static let shared = SoundManager()
     var player: AVAudioPlayer?
 
-    func playSound() {
-        guard let url = Bundle.main.url(forResource: "soundGlass", withExtension: "mp3") else {
-            print("Sound file not found")
+    func playSound(named soundName: String = "soundGlass") {
+        let isSoundEnabled = UserDefaults.standard.object(forKey: "isSoundEnabled") as? Bool ?? true
+        guard isSoundEnabled else { return }
+        
+        guard let url = Bundle.main.url(forResource: soundName, withExtension: "mp3") else {
+            print("Sound file \(soundName) not found")
             return
         }
         do {
