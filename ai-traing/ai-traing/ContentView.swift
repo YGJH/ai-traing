@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import Charts
 import Combine
+import AVFoundation
 
 
 
@@ -536,6 +537,11 @@ struct ContentView: View {
         }
         .environment(gameEnv)
         .animation(.spring, value: hasCompletedOnboarding)
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                SoundManager.shared.playSound()
+            }
+        )
         .sheet(isPresented: $showSettings) {
             SettingsView(isPlayerFirst: $isPlayerFirst)
         }
@@ -697,6 +703,29 @@ struct MenuButton: View {
                     .stroke(LinearGradient(colors: [color.opacity(0.5), color.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
             )
             .shadow(color: color.opacity(0.15), radius: 8, x: 0, y: 4)
+        }
+    }
+}
+
+class SoundManager {
+    static let shared = SoundManager()
+    var player: AVAudioPlayer?
+
+    func playSound() {
+        guard let url = Bundle.main.url(forResource: "soundGlass", withExtension: "mp3") else {
+            print("Sound file not found")
+            return
+        }
+        do {
+            // Allow background audio to mix if needed, or just play
+            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            
+            player = try AVAudioPlayer(contentsOf: url)
+            player?.prepareToPlay()
+            player?.play()
+        } catch {
+            print("Error playing sound: \(error.localizedDescription)")
         }
     }
 }
