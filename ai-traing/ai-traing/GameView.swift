@@ -400,6 +400,9 @@ struct GameView: View {
     }
     
     func handleGameEnd() {
+        // Prevent multiple calls
+        guard !isTraining else { return }
+        
         stopTimer()
         print("🏁 Game Finished. Starting Training...")
         isTraining = true
@@ -483,7 +486,7 @@ struct GameView: View {
     }
 
     func handlePlayerMove(action: Int) {
-        guard !isProcessingTurn else { return }
+        guard !isProcessingTurn && !isTraining else { return }
         stopTimer()
         
         // Play sound for card placement (if not passing)
@@ -541,9 +544,16 @@ struct GameView: View {
             // Delay for UX
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
             
+            // Check if training started while we were sleeping
+            if isTraining {
+                isProcessingTurn = false
+                agent_thinking = false
+                return
+            }
+            
             if let agent = agent {
                 // AI executes step internally
-                let (aiAction, finished, _) = agent.step_one(deterministic: true)
+                let (aiAction, finished, _) = agent.step_one()
                 
                 // Play sound for AI card placement
                 if aiAction < 10 {

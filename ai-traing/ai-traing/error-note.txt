@@ -1,0 +1,587 @@
+== DATE:
+
+    Saturday, November 22, 2025 at 6:18:34 PM Taipei Standard Time
+    
+    2025-11-22T10:18:34Z
+
+
+
+== PAUSED REASON:
+
+    processCrashed
+
+
+
+== PREVIEW UPDATE ERROR:
+
+    CrashReportError: Fatal Error in Environment+Objects.swift
+    
+    ai-traing crashed due to fatalError in Environment+Objects.swift at line 34.
+    
+    No Observable object of type AIEnv found. A View.environmentObject(_:) for AIEnv may be missing as an ancestor of this view.
+    
+    Process:             ai-traing [99467]
+    Path:                <none>
+    
+    Date/Time:           2025-11-22 10:17:37 +0000
+    
+    Application Specific Information:
+        libswiftCore.dylib:
+            SwiftUICore/Environment+Objects.swift:34: Fatal error: No Observable object of type AIEnv found. A View.environmentObject(_:) for AIEnv may be missing as an ancestor of this view.
+        dyld:
+            dyld config: DYLD_SHARED_CACHE_DIR=/Library/Developer/CoreSimulator/Caches/dyld/25B5042k/com.apple.CoreSimulator.SimRuntime.iOS-26-0.23A5326a/ DYLD_ROOT_PATH=/Library/Developer/CoreSimulator/Volumes/iOS_23A5326a/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.0.simruntime/Contents/Resources/RuntimeRoot DYLD_LIBRARY_PATH=/Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator DYLD_INSERT_LIBRARIES=@executable_path/__preview.dylib:/Library/Developer/CoreSimulator/Volumes/iOS_23A5326a/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libLogRedirect.dylib:/Users/user20/Downloads/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator/libPlaygrounds.dylib:/System/Library/PrivateFrameworks/LiveExecutionResultsProbe.framework/LiveExecutionResultsProbe:/Users/user20/Downloads/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator/libLiveExecutionResultsLogger.dylib:/System/Library/PrivateFrameworks/PreviewsInjection.framework/PreviewsInjection DYLD_FRAMEWORK_PATH=/Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator DYLD_FALLBACK_FRAMEWORK_PATH=/Library/Developer/CoreSimulator/Volumes/iOS_23A5326a/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks DYLD_FALLBACK_LIBRARY_PATH=/Library/Developer/CoreSimulator/Volumes/iOS_23A5326a/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib
+        libsystem_sim_platform.dylib:
+            CoreSimulator 1047 - Device: iPhone 16 Pro (1375D963-844D-4C1E-9EDF-426C250FB704) - Runtime: iOS 26.0 (23A5326a) - DeviceType: iPhone 16 Pro
+    
+    Termination Reason:  Namespace SIGNAL, Code 5, Trace/BPT trap: 5
+    Terminating Process: exc handler [99467]
+    
+    Crashing Thread:
+    0    libswiftCore.dylib                  0x000103b64 _assertionFailure(_:_:file:line:flags:) + 156
+    1    SwiftUICore                         0x00020c974 specialized EnvironmentValues.subscript.getter + 308
+    2    SwiftUICore                         0x000952a60 ???
+    3    libswiftCore.dylib                  0x0001e5010 KeyPath._projectReadOnly(from:) + 340
+    4    libswiftCore.dylib                  0x0001e987c swift_getAtKeyPath + 20
+    5    SwiftUICore                         0x0007179f0 closure #1 in EnvironmentBox.update(property:phase:) + 68
+    6    SwiftUICore                         0x00071979c partial apply for closure #1 in EnvironmentBox.update(property:phase:) + 16
+    7    SwiftUICore                         0x00071a4f0 closure #1 in ObservationCenter._withObservation<A>(do:) + 84
+    8    SwiftUICore                         0x0000bc5fc partial apply for closure #1 in ObservationCenter._withObservation<A>(do:) + 24
+    9    SwiftUICore                         0x0002595ec <deduplicated_symbol> + 72
+    10   SwiftUICore                         0x000717514 EnvironmentBox.update(property:phase:) + 1216
+    11   SwiftUICore                         0x0004484d4 static BoxVTable.update(elt:property:phase:) + 248
+    12   SwiftUICore                         0x0004475a4 _DynamicPropertyBuffer.update(container:phase:) + 128
+    13   SwiftUICore                         0x0004d8ec4 closure #1 in closure #1 in DynamicBody.updateValue() + 204
+    14   SwiftUICore                         0x0004da940 partial apply for closure #1 in closure #1 in DynamicBody.updateValue() + 28
+    15   SwiftUICore                         0x0002595ec <deduplicated_symbol> + 72
+    16   SwiftUICore                         0x0004d8aac closure #1 in DynamicBody.updateValue() + 296
+    17   SwiftUICore                         0x0004d86c8 DynamicBody.updateValue() + 836
+    18   SwiftUICore                         0x000265d24 partial apply for implicit closure #1 in closure #1 in closure #1 in Attribute.init<A>(_:) + 28
+    19   AttributeGraph                      0x00000b728 AG::Graph::UpdateStack::update() + 492
+    20   AttributeGraph                      0x00000be18 AG::Graph::update_attribute(AG::data::ptr<AG::Node>, unsigned int) + 352
+    21   AttributeGraph                      0x000013534 AG::Graph::input_value_ref_slow(AG::data::ptr<AG::Node>, AG::AttributeID, unsigned int, unsigned int, AGSwiftMetadata const*, unsigned char&, long) + 668
+    22   AttributeGraph                      0x00002b19c AGGraphGetValue + 236
+    23   SwiftUICore                         0x000161f40 specialized DynamicViewContainer.updateValue() + 76
+    24   SwiftUICore                         0x00016dc94 specialized implicit closure #1 in closure #1 in closure #1 in Attribute.init<A>(_:) + 20
+    25   AttributeGraph                      0x00000b728 AG::Graph::UpdateStack::update() + 492
+    26   AttributeGraph                      0x00000be18 AG::Graph::update_attribute(AG::data::ptr<AG::Node>, unsigned int) + 352
+    27   AttributeGraph                      0x000023c48 AG::AttributeID::resolve_slow(unsigned int) const + 136
+    28   AttributeGraph                      0x00001346c AG::Graph::input_value_ref_slow(AG::data::ptr<AG::Node>, AG::AttributeID, unsigned int, unsigned int, AGSwiftMetadata const*, unsigned char&, long) + 468
+    29   AttributeGraph                      0x00002b19c AGGraphGetValue + 236
+    30   SwiftUICore                         0x00058a350 SecondaryChild.preferenceValue.getter + 112
+    31   SwiftUICore                         0x00058a9fc closure #1 in closure #1 in SecondaryChild.value.getter + 200
+    32   SwiftUICore                         0x00079a444 closure #1 in Attribute.syncMainIfReferences<A>(do:) + 104
+    33   SwiftUICore                         0x0004dd634 specialized static Update.syncMain(_:) + 76
+    34   SwiftUICore                         0x000798a08 Attribute.syncMainIfReferences<A>(do:) + 280
+    35   SwiftUICore                         0x00058a91c closure #1 in SecondaryChild.value.getter + 104
+    36   SwiftUICore                         0x00058ad28 partial apply for closure #1 in SecondaryChild.value.getter + 24
+    37   SwiftUICore                         0x00071a4f0 closure #1 in ObservationCenter._withObservation<A>(do:) + 84
+    38   SwiftUICore                         0x0000bc5fc partial apply for closure #1 in ObservationCenter._withObservation<A>(do:) + 24
+    39   SwiftUICore                         0x0002595ec <deduplicated_symbol> + 72
+    40   SwiftUICore                         0x00058a638 SecondaryChild.value.getter + 684
+    41   SwiftUICore                         0x00056cf20 implicit closure #1 in closure #1 in closure #1 in Attribute.init<A>(_:) + 148
+    42   AttributeGraph                      0x00000b728 AG::Graph::UpdateStack::update() + 492
+    43   AttributeGraph                      0x00000be18 AG::Graph::update_attribute(AG::data::ptr<AG::Node>, unsigned int) + 352
+    44   AttributeGraph                      0x000013534 AG::Graph::input_value_ref_slow(AG::data::ptr<AG::Node>, AG::AttributeID, unsigned int, unsigned int, AGSwiftMetadata const*, unsigned char&, long) + 668
+    45   AttributeGraph                      0x00002b19c AGGraphGetValue + 236
+    46   SwiftUICore                         0x0008c1f00 DynamicViewList.updateValue() + 288
+    47   SwiftUICore                         0x000265d24 partial apply for implicit closure #1 in closure #1 in closure #1 in Attribute.init<A>(_:) + 28
+    48   AttributeGraph                      0x00000b728 AG::Graph::UpdateStack::update() + 492
+    49   AttributeGraph                      0x00000be18 AG::Graph::update_attribute(AG::data::ptr<AG::Node>, unsigned int) + 352
+    50   AttributeGraph                      0x000013534 AG::Graph::input_value_ref_slow(AG::data::ptr<AG::Node>, AG::AttributeID, unsigned int, unsigned int, AGSwiftMetadata const*, unsigned char&, long) + 668
+    51   AttributeGraph                      0x00002b19c AGGraphGetValue + 236
+    52   SwiftUICore                         0x0001499d4 specialized DynamicContainerInfo.updateItems(disableTransitions:) + 92
+    53   SwiftUICore                         0x000148894 specialized DynamicContainerInfo.updateValue() + 424
+    54   SwiftUICore                         0x00016d7ac specialized implicit closure #1 in closure #1 in closure #1 in Attribute.init<A>(_:) + 20
+    55   AttributeGraph                      0x00000b728 AG::Graph::UpdateStack::update() + 492
+    56   AttributeGraph                      0x00000be18 AG::Graph::update_attribute(AG::data::ptr<AG::Node>, unsigned int) + 352
+    57   AttributeGraph                      0x000013534 AG::Graph::input_value_ref_slow(AG::data::ptr<AG::Node>, AG::AttributeID, unsigned int, unsigned int, AGSwiftMetadata const*, unsigned char&, long) + 668
+    58   AttributeGraph                      0x00002b19c AGGraphGetValue + 236
+    59   SwiftUICore                         0x00056355c DynamicPreferenceCombiner.info.getter + 80
+    60   SwiftUICore                         0x000563650 DynamicPreferenceCombiner.value.getter + 140
+    61   SwiftUICore                         0x00056cf20 implicit closure #1 in closure #1 in closure #1 in Attribute.init<A>(_:) + 148
+    62   AttributeGraph                      0x00000b728 AG::Graph::UpdateStack::update() + 492
+    63   AttributeGraph                      0x00000be18 AG::Graph::update_attribute(AG::data::ptr<AG::Node>, unsigned int) + 352
+    64   AttributeGraph                      0x000013534 AG::Graph::input_value_ref_slow(AG::data::ptr<AG::Node>, AG::AttributeID, unsigned int, unsigned int, AGSwiftMetadata const*, unsigned char&, long) + 668
+    65   AttributeGraph                      0x00002b19c AGGraphGetValue + 236
+    66   SwiftUICore                         0x00022c508 PairPreferenceCombiner.value.getter + 96
+    67   SwiftUICore                         0x00056cf20 implicit closure #1 in closure #1 in closure #1 in Attribute.init<A>(_:) + 148
+    68   AttributeGraph                      0x00000b728 AG::Graph::UpdateStack::update() + 492
+    69   AttributeGraph                      0x00000be18 AG::Graph::update_attribute(AG::data::ptr<AG::Node>, unsigned int) + 352
+    70   AttributeGraph                      0x000012c40 AG::Graph::value_ref(AG::AttributeID, unsigned int, AGSwiftMetadata const*, unsigned char&) + 260
+    71   AttributeGraph                      0x00002b4dc AGGraphGetWeakValue + 368
+    72   SwiftUICore                         0x0006ff050 GraphHost.preferenceValue<A>(_:) + 504
+    73   SwiftUICore                         0x000aec638 partial apply for closure #1 in ViewGraphRootValueUpdater._preferenceValue<A>(_:) + 32
+    74   SwiftUICore                         0x000ae95a0 ViewGraphRootValueUpdater._updateViewGraph<A>(body:) + 200
+    75   SwiftUICore                         0x000ae737c ViewGraphRootValueUpdater._preferenceValue<A>(_:) + 180
+    76   SwiftUI                             0x00040bccc specialized PresentationHostingController.setupDelayIfNeeded() + 140
+    77   SwiftUI                             0x0003327d8 SheetBridge.present(_:from:animated:existingPresentedVC:isPreempting:) + 1008
+    78   SwiftUI                             0x0003340bc SheetBridge.contingentlyPresent(_:from:animated:) + 1364
+    79   SwiftUI                             0x000243ce8 specialized SheetBridge.preferencesDidChange(_:) + 5504
+    80   SwiftUI                             0x00023f040 _UIHostingView.preferencesDidChange() + 1136
+    81   SwiftUICore                         0x000aee4a8 ViewGraph.updateOutputs(at:) + 452
+    82   SwiftUICore                         0x000ae8660 closure #1 in ViewGraphRootValueUpdater.render(interval:updateDisplayList:targetTimestamp:) + 644
+    83   SwiftUICore                         0x000ae6d88 ViewGraphRootValueUpdater.render(interval:updateDisplayList:targetTimestamp:) + 420
+    84   SwiftUICore                         0x000228484 ViewGraphHost.displayLinkTimer(timestamp:targetTimestamp:isAsyncThread:) + 332
+    85   SwiftUICore                         0x00022a178 ViewGraphDisplayLink.displayLinkTimer(_:) + 284
+    86   SwiftUICore                         0x00022a6e8 @objc ViewGraphDisplayLink.displayLinkTimer(_:) + 56
+    87   QuartzCore                          0x000018a8c CA::Display::DisplayLinkItem::dispatch_(CA::SignPost::Interval<(CA::SignPost::CAEventCode)835322056>&) + 44
+    88   QuartzCore                          0x000014544 CA::Display::DisplayLink::dispatch_items(unsigned long long, unsigned long long, unsigned long long) + 812
+    89   QuartzCore                          0x00001bb58 CA::Display::DisplayLink::dispatch_deferred_display_links(unsigned int) + 336
+    90   UIKitCore                           0x00061d610 _UIUpdateSequenceRunNext + 120
+    91   UIKitCore                           0x0010289a0 schedulerStepScheduledMainSectionContinue + 56
+    92   UpdateCycle                         0x0000012b4 UC::DriverCore::continueProcessing() + 80
+    93   CoreFoundation                      0x0000574ac __CFMachPortPerform + 164
+    94   CoreFoundation                      0x000093be0 __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE1_PERFORM_FUNCTION__ + 56
+    95   CoreFoundation                      0x0000931f8 __CFRunLoopDoSource1 + 480
+    96   CoreFoundation                      0x0000922c0 __CFRunLoopRun + 2100
+    97   CoreFoundation                      0x00008ce24 _CFRunLoopRunSpecificWithOptions + 496
+    98   GraphicsServices                    0x0000029bc GSEventRunModal + 116
+    99   UIKitCore                           0x00110994c -[UIApplication _run] + 772
+    100  UIKitCore                           0x00110db74 UIApplicationMain + 124
+    101  SwiftUI                             0x0007b56c0 closure #1 in KitRendererCommon(_:) + 164
+    102  SwiftUI                             0x0007b5408 runApp<A>(_:) + 180
+    103  SwiftUI                             0x00053f498 static App.main() + 148
+    104  ???                                 0x340018418 _$s9ai_traing0a1_B3AppV5$mainyyFZ
+    105  ???                                 0x3400184c4 _main
+    106  ai-traing                           0x000001460 __debug_blank_executor_run_user_entry_point + 148
+    107  PreviewsInjection                   0x000024c68 ???
+    108  PreviewsInjection                   0x000025890 ???
+    109  PreviewsInjection                   0x0000257b4 __previews_injection_run_user_entrypoint + 12
+    110  XOJITExecutor                       0x000005d9c __xojit_executor_run_program_wrapper + 1460
+    111  XOJITExecutor                       0x00000225c ???
+    112  PreviewsInjection                   0x000025700 ???
+    113  ai-traing                           0x000000c30 __debug_blank_executor_main + 992
+    114  ???                                 0x102e793d0 ???
+    115  dyld                                0x000008d54 start + 7184
+    
+    Binary Images:
+           0x102d44000 dyld <551d0f31-e895-389e-9cc7-fd8bad6462c8> /usr/lib/dyld
+           0x102c64000 ai-traing <7bf75bca-57e1-3bb7-b8bb-845646d609a0> /Users/USER/Library/Developer/Xcode/UserData/Previews/Simulator Devices/1375D963-844D-4C1E-9EDF-426C250FB704/data/Containers/Bundle/Application/1F07A8D4-BEBA-4C31-8199-A20401F541FF/ai-traing.app/ai-traing
+           0x102c8c000 __preview.dylib <9a2abee0-64bc-320f-a62a-e307170f8230> /Users/USER/Library/Developer/Xcode/UserData/Previews/Simulator Devices/1375D963-844D-4C1E-9EDF-426C250FB704/data/Containers/Bundle/Application/1F07A8D4-BEBA-4C31-8199-A20401F541FF/ai-traing.app/__preview.dylib
+           0x102cac000 libLogRedirect.dylib <1821b6f9-9091-3063-93b2-c68829e2da9e> /Volumes/VOLUME/*/libLogRedirect.dylib
+           0x102f34000 libPlaygrounds.dylib <91b61b09-cd16-30c2-86c5-72f5ff782a04> /Users/USER/Downloads/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator/libPlaygrounds.dylib
+           0x102cc0000 libLiveExecutionResultsLogger.dylib <18f77c4c-a2c4-368c-921b-1d292cc4cd79> /Users/USER/Downloads/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator/libLiveExecutionResultsLogger.dylib
+           0x102d14000 libsystem_platform.dylib <b445cf3e-c9bc-3228-a437-5697e3f73199> /usr/lib/system/libsystem_platform.dylib
+           0x1030c4000 libsystem_kernel.dylib <9499e9a1-08ce-374b-ad71-7422d9e88bb5> /usr/lib/system/libsystem_kernel.dylib
+           0x102ff8000 libsystem_pthread.dylib <886b18f9-37c7-3c71-bf01-a1392d3ce3a1> /usr/lib/system/libsystem_pthread.dylib
+           0x1031e8000 libobjc-trampolines.dylib <78c22921-6ad3-3681-bedb-525a69493719> /Volumes/VOLUME/*/libobjc-trampolines.dylib
+           0x196feb000 libswiftCore.dylib <32e3e1fc-c3c8-3bd0-9532-de7cfdcecdfd> /Volumes/VOLUME/*/libswiftCore.dylib
+           0x1d974b000 SwiftUICore <c75336df-0f33-3ce4-996f-96d1b9338484> /Volumes/VOLUME/*/SwiftUICore.framework/SwiftUICore
+           0x1c3a33000 AttributeGraph <e44ec625-051a-36dd-81d6-d0833c34230c> /Volumes/VOLUME/*/AttributeGraph.framework/AttributeGraph
+           0x1d859b000 SwiftUI <79923a89-e9e6-3533-8727-1348e9a1897f> /Volumes/VOLUME/*/SwiftUI.framework/SwiftUI
+           0x18c486000 QuartzCore <cb7d22f4-61f6-349e-91e2-007a0cccb858> /Volumes/VOLUME/*/QuartzCore.framework/QuartzCore
+           0x185154000 UIKitCore <8ccc244b-a24d-3b04-9ff4-60dbc04485ee> /Volumes/VOLUME/*/UIKitCore.framework/UIKitCore
+           0x25068d000 UpdateCycle <fc49003c-75a7-3db2-84ca-8076eef1d8a7> /Volumes/VOLUME/*/UpdateCycle.framework/UpdateCycle
+           0x1803ba000 CoreFoundation <687f7b34-96bf-3d54-895a-3b232e7e4bb2> /Volumes/VOLUME/*/CoreFoundation.framework/CoreFoundation
+           0x192527000 GraphicsServices <02f377dd-50ff-356a-bcea-2c061ebe5045> /Volumes/VOLUME/*/GraphicsServices.framework/GraphicsServices
+           0x000000000 ??? <00000000-0000-0000-0000-000000000000> ???
+           0x241805000 PreviewsInjection <e078213b-1f5b-38b1-8d66-d054f70f6241> /Volumes/VOLUME/*/PreviewsInjection.framework/PreviewsInjection
+           0x2548bf000 XOJITExecutor <31fbe0cd-1172-3871-b996-ab5da76a0d6a> /Volumes/VOLUME/*/XOJITExecutor.framework/XOJITExecutor
+           0x1801b7000 libdispatch.dylib <e4af9b0e-70f1-369d-8dd1-f07b9754834b> /Volumes/VOLUME/*/libdispatch.dylib
+           0x18085a000 Foundation <9bb96c3a-98b3-304a-8468-428a3189ec56> /Volumes/VOLUME/*/Foundation.framework/Foundation
+           0x1800da000 libsystem_trace.dylib <00017735-361b-302f-92f1-6b098d6b0948> /Volumes/VOLUME/*/libsystem_trace.dylib
+           0x24215a000 PromptKit <bd7b0eea-0b26-37b2-92e3-665978db8605> /Volumes/VOLUME/*/PromptKit.framework/PromptKit
+           0x24187a000 PreviewsMessagingOS <39baa1fb-f7fe-3a89-8210-a030ff8db9b4> /Volumes/VOLUME/*/PreviewsMessagingOS.framework/PreviewsMessagingOS
+           0x235d3f000 LiveExecutionResultsProbe <86dba6be-1c4f-3333-97d3-6a7c90957fe3> /Volumes/VOLUME/*/LiveExecutionResultsProbe.framework/LiveExecutionResultsProbe
+    
+    EOF
+
+
+
+== VERSION INFO:
+
+    Tools: 17A5305k
+    OS:    25B5042k
+    PID:   471
+    Model: iMac
+    Arch:  arm64e
+
+
+
+== EXECUTION MODE PROPERTIES:
+
+    Automatically Refresh Previews: true
+    JIT Mode User Enabled: true
+    Falling back to Dynamic Replacement: false
+
+
+
+== PACKAGE RESOLUTION ERRORS:
+
+    
+
+
+
+== REFERENCED SOURCE PACKAGES:
+
+    
+
+
+
+== JIT LINKAGE:
+
+    Run Destination: 81558439-58E5-4BC1-A9A5-7E64B88F9493-iphonesimulator26.0-arm64-iphonesimulator
+    JIT Link Description {
+        3:ai-traing.app
+    }
+    
+
+
+
+== ENVIRONMENT:
+
+    openFiles = [
+        /Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift
+    ]
+    wantsNewBuildSystem = true
+    newBuildSystemAvailable = true
+    activeScheme = ai-traing
+    activeRunDestination = Charles variant iphoneos arm64
+    workspaceArena = [x]
+    buildArena = [x]
+    buildableEntries = [
+        ai-traing.app
+    ]
+    runMode = JIT Executor
+
+
+
+== SELECTED RUN DESTINATION:
+
+    iOS 26.0 | iphoneos | arm64 | iPhone 12 Pro | no proxy
+
+
+
+== SESSION GROUP 3877 (START):
+
+    workspace identifier: workspace:67296C42-8266-4B8F-9856-797155A25334
+    previewPreflights [
+           Preview Preflight | Registry-ContentView.swift#1[preview]: from Editor(10028) for local
+    ]
+    externalRegistryPreflights [
+    ]
+    providers [
+           Preview Provider | Registry-ContentView.swift#1[preview] [Editor(10028)]
+    ]
+    translation units [
+           /Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift
+    ]
+    attributes: [
+        Editor(10028):     
+            isAppPreviewEnabled: false
+            destinationMode: automatic
+            previewSettings: [
+                preview(GameView_Previews provider #1 in GameView.swift[0]):     isEnabled: false
+                    boxedCanvasControlStates: []
+                preview(Registry-ContentView.swift#1[preview]):     isEnabled: true
+                    boxedCanvasControlStates: []
+                preview(Registry-GameView.swift#1[preview]):     isEnabled: false
+                    boxedCanvasControlStates: []
+            ]
+    ]
+    Agent Launch Environment {
+        Launch Arguments [
+        ]
+        Environment Variables {
+            CFLOG_FORCE_DISABLE_STDERR: 1
+            DYLD_FRAMEWORK_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            DYLD_INSERT_LIBRARIES: /Library/Developer/CoreSimulator/Volumes/iOS_23A5326a/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libLogRedirect.dylib
+            DYLD_LIBRARY_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            IDE_DISABLED_OS_ACTIVITY_DT_MODE: 1
+            LOGGER_DEPTH: 6
+            OS_ACTIVITY_TOOLS_OVERSIZE: YES
+            OS_ACTIVITY_TOOLS_PRIVACY: YES
+            OS_LOG_DT_HOOK_MODE: 0x07
+            OS_LOG_DT_HOOK_PREFIX: OSLOG-FC4D03D1-3559-4E08-8CE8-FA5BA2F499F0
+            OS_LOG_TRANSLATE_PRINT_MODE: 0x80
+            PACKAGE_RESOURCE_BUNDLE_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            PLAYGROUND_LOGGER_FILTER: {"captureSourceLineEvents":false,"excludeViewResults":false,"captureScopeEvents":false,"excludeImageResults":false,"createLogPackets":true,"renderSwiftUIViews":false,"generateQuickLook":true,"encodeLogPackets":true,"generateSummaries":true}
+            SQLITE_ENABLE_THREAD_ASSERTIONS: 1
+            TERM: dumb
+            XCODE_RUNNING_FOR_PLAYGROUNDS: 1
+            __XCODE_BUILT_PRODUCTS_DIR_PATHS: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            __XPC_DYLD_FRAMEWORK_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            __XPC_DYLD_LIBRARY_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+        }
+    }
+    Agent {
+        identifier: Agent #392247 [Description #10321: test.ai-traing in workspace:67296C42-8266-4B8F-9856-797155A25334]
+        pid: 99467
+    }
+
+
+
+== SESSION GROUP 3876 (START):
+
+    workspace identifier: workspace:67296C42-8266-4B8F-9856-797155A25334
+    previewPreflights [
+           Preview Preflight | Registry-ContentView.swift#1[preview]: from Editor(10028) for local
+    ]
+    externalRegistryPreflights [
+    ]
+    providers [
+           Preview Provider | Registry-ContentView.swift#1[preview] [Editor(10028)]
+    ]
+    translation units [
+           /Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift
+    ]
+    attributes: [
+        Editor(10028):     
+            isAppPreviewEnabled: false
+            destinationMode: automatic
+            previewSettings: [
+                preview(GameView_Previews provider #1 in GameView.swift[0]):     isEnabled: false
+                    boxedCanvasControlStates: []
+                preview(Registry-ContentView.swift#1[preview]):     isEnabled: true
+                    boxedCanvasControlStates: []
+                preview(Registry-GameView.swift#1[preview]):     isEnabled: false
+                    boxedCanvasControlStates: []
+            ]
+    ]
+    update plan {
+        iOS [arm64 iphonesimulator26.0 iphonesimulator] (iPhone 16 Pro, 81558439-58E5-4BC1-A9A5-7E64B88F9493-iphonesimulator26.0-arm64-iphonesimulator), [], thinning disabled, thunking enabled) {
+            Destination: iPhone 16 Pro 81558439-58E5-4BC1-A9A5-7E64B88F9493 | default device for iphonesimulator [
+                ai_traing app - Previews {
+                    execution point packs [
+                        [source: ContentView.swift, role: Previews, domain: application] (in ai_traing)
+                        [source: ContentView.swift, role: Previews] (in ai_traing)
+                    ]
+                    translation units [
+                        ContentView.swift (in ai-traing.app)
+                    ]
+                    modules [
+                        ai-traing.app
+                    ]
+                    jit link description [
+                        ai-traing.app
+                    ]
+                }
+            ]
+        }
+    }
+    Agent {
+        identifier: Agent #392037 [Description #10321: test.ai-traing in workspace:67296C42-8266-4B8F-9856-797155A25334]
+        pid: 99420
+    }
+    Agent Launch Environment {
+        Launch Arguments [
+        ]
+        Environment Variables {
+            CFLOG_FORCE_DISABLE_STDERR: 1
+            DYLD_FRAMEWORK_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            DYLD_INSERT_LIBRARIES: /Library/Developer/CoreSimulator/Volumes/iOS_23A5326a/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.0.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libLogRedirect.dylib
+            DYLD_LIBRARY_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            IDE_DISABLED_OS_ACTIVITY_DT_MODE: 1
+            LOGGER_DEPTH: 6
+            OS_ACTIVITY_TOOLS_OVERSIZE: YES
+            OS_ACTIVITY_TOOLS_PRIVACY: YES
+            OS_LOG_DT_HOOK_MODE: 0x07
+            OS_LOG_DT_HOOK_PREFIX: OSLOG-FC4D03D1-3559-4E08-8CE8-FA5BA2F499F0
+            OS_LOG_TRANSLATE_PRINT_MODE: 0x80
+            PACKAGE_RESOURCE_BUNDLE_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            PLAYGROUND_LOGGER_FILTER: {"captureSourceLineEvents":false,"excludeViewResults":false,"captureScopeEvents":false,"excludeImageResults":false,"createLogPackets":true,"renderSwiftUIViews":false,"generateQuickLook":true,"encodeLogPackets":true,"generateSummaries":true}
+            SQLITE_ENABLE_THREAD_ASSERTIONS: 1
+            TERM: dumb
+            XCODE_RUNNING_FOR_PLAYGROUNDS: 1
+            __XCODE_BUILT_PRODUCTS_DIR_PATHS: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            __XPC_DYLD_FRAMEWORK_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+            __XPC_DYLD_LIBRARY_PATH: /Users/user20/Library/Developer/Xcode/DerivedData/ai-traing-ejmlzjvfusexgcftvxcqvvmtfwvr/Build/Products/Debug-iphonesimulator
+        }
+    }
+
+
+
+== SESSION GROUP 3875 (START):
+
+    workspace identifier: workspace:67296C42-8266-4B8F-9856-797155A25334
+    previewPreflights [
+           Preview Preflight | Registry-ContentView.swift#1[preview]: from Editor(10028) for local
+    ]
+    externalRegistryPreflights [
+    ]
+    providers [
+           Preview Provider | Registry-ContentView.swift#1[preview] [Editor(10028)]
+    ]
+    translation units [
+           /Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift
+    ]
+    attributes: [
+        Editor(10028):     
+            isAppPreviewEnabled: false
+            destinationMode: automatic
+            previewSettings: [
+                preview(GameView_Previews provider #1 in GameView.swift[0]):     isEnabled: false
+                    boxedCanvasControlStates: []
+                preview(Registry-ContentView.swift#1[preview]):     isEnabled: false
+                    boxedCanvasControlStates: []
+                preview(Registry-GameView.swift#1[preview]):     isEnabled: false
+                    boxedCanvasControlStates: []
+            ]
+    ]
+    build graph {
+        ai-traing.app (#3)
+           sourceFile(file:///Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift -> ContentView.swift) (#1)
+           ContentView.swift (#2)
+    }
+    update plan {
+        iOS [arm64 iphonesimulator26.0 iphonesimulator] (iPhone 16 Pro, 81558439-58E5-4BC1-A9A5-7E64B88F9493-iphonesimulator26.0-arm64-iphonesimulator), [], thinning disabled, thunking enabled) {
+            Destination: iPhone 16 Pro 81558439-58E5-4BC1-A9A5-7E64B88F9493 | default device for iphonesimulator [
+                ai_traing app - Previews {
+                    execution point packs [
+                        [source: ContentView.swift, role: Previews] (in ai_traing)
+                    ]
+                    translation units [
+                        ContentView.swift (in ai-traing.app)
+                    ]
+                    modules [
+                        ai-traing.app
+                    ]
+                    jit link description [
+                        ai-traing.app
+                    ]
+                }
+            ]
+        }
+    }
+
+
+
+== SESSION GROUP 3874 (START):
+
+    workspace identifier: workspace:67296C42-8266-4B8F-9856-797155A25334
+    previewPreflights [
+           Preview Preflight | Registry-ContentView.swift#1[preview]: from Editor(10028) for local
+    ]
+    externalRegistryPreflights [
+    ]
+    providers [
+           Preview Provider | Registry-ContentView.swift#1[preview] [Editor(10028)]
+    ]
+    translation units [
+           /Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift
+    ]
+    attributes: [
+        Editor(10028):     
+            isAppPreviewEnabled: false
+            destinationMode: automatic
+            previewSettings: [
+                preview(GameView_Previews provider #1 in GameView.swift[0]):     isEnabled: false
+                    boxedCanvasControlStates: []
+                preview(Registry-ContentView.swift#1[preview]):     isEnabled: true
+                    boxedCanvasControlStates: []
+                preview(Registry-GameView.swift#1[preview]):     isEnabled: false
+                    boxedCanvasControlStates: []
+            ]
+    ]
+    build graph {
+        ai-traing.app (#3)
+           sourceFile(file:///Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift -> ContentView.swift) (#1)
+           ContentView.swift (#2)
+    }
+
+
+
+== BUILD PRODUCTS CACHE:
+
+    BuildCache {
+        Incremental Values [
+            file:///Users/user20/Desktop/ai-traing/ai-traing/ContentView.swift -> ContentView.swift {
+                #10088_0: #10088_0 = aaaaa
+                #10088_1: #10088_1 = 20
+                #10088_12: #10088_12 = 300
+                #10088_133: #10088_133 = 300
+                #10088_134: #10088_134 = 300
+                #10088_135: #10088_135 = 310
+                #10088_137: #10088_137 = 1
+                #10088_2: #10088_2 = Start a new game
+                #10088_29: #10088_29 = img1
+                #10088_3: #10088_3 = continue
+                #10088_4: #10088_4 = 開始
+                #10088_6: #10088_6 = GO
+                #10088_7: #10088_7 = Start
+                #10088_8: #10088_8 = 請按下開始
+                #10088_9: #10088_9 = 1000
+            }
+            file:///Users/user20/Desktop/ai-traing/ai-traing/GameView.swift -> GameView.swift {
+                #127377_0: #127377_0 = 20
+                #127377_1: #127377_1 = 0
+                #127377_10: #127377_10 = 6
+                #127377_11: #127377_11 = 10
+                #127377_12: #127377_12 = 203
+                #127377_14: #127377_14 = test
+                #127377_15: #127377_15 = 2
+                #127377_16: #127377_16 = 1
+                #127377_19: #127377_19 = You can't not put this card
+                #127377_2: #127377_2 = 200
+                #127377_23: #127377_23 = 1
+                #127377_25: #127377_25 = You can not output card in this turn.
+                #127377_29: #127377_29 = 0
+                #127377_3: #127377_3 = 
+                #127377_35: #127377_35 = 1
+                #127377_4: #127377_4 = Used
+                #127377_6: #127377_6 = 3
+                #127377_62: #127377_62 = 10
+                #127377_7: #127377_7 = -10
+                #127377_9: #127377_9 = 3
+            }
+        ]
+    }
+
+
+
+== POWER STATE LOGS:
+
+    11/19/2025, 1:18 AM Received power source state: Externally Powered
+    11/19/2025, 1:18 AM No device power state user override user default value.Current power state: Full Power
+
+
+
+== DISPLAYABLE CONTENT STATE:
+
+    updateIdentifier: 392168
+    buildingState: Paused: Process crashed
+    isUpdateInProgress: false
+    providers [
+        Registry[Registry-ContentView.swift#1[preview] (line 876)] {
+            status: Completed: Not attempted
+        }
+    ]
+    registries [
+        Registry-ContentView.swift#1[preview] {
+            status: Completed: Available
+            ContentView {
+                canvasContent {
+                    isStale: true
+                    states {
+                        livePreview: updating
+                        staticPreview: disabled
+                        Light Appearance: disabled
+                        Dark Appearance: disabled
+                        Portrait: disabled
+                        Landscape Left: disabled
+                        Landscape Right: disabled
+                        X Small: disabled
+                        Small: disabled
+                        Medium: disabled
+                        Large: disabled
+                        X Large: disabled
+                        XX Large: disabled
+                        XXX Large: disabled
+                        AX 1: disabled
+                        AX 2: disabled
+                        AX 3: disabled
+                        AX 4: disabled
+                        AX 5: disabled
+                    }
+                }
+            }
+        }
+    ]
+
+
+
+當我打開 reward function 的 view 的時候 就會出現 preview crash
+
+
+solution:
+The crash occurred because the RewardEditorView presented in the sheet was not inheriting the AIEnv environment object from the parent view. I have explicitly injected .environment(gameEnv) into the RewardEditorView within the sheet modifier in ContentView.swift. This should resolve the crash.

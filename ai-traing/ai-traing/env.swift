@@ -37,6 +37,9 @@ class AIEnv {
     var agent2_round_cards: [Int] = []
     var last_reward: (Float, Float) = (0.0, 0.0)
     
+    // Strategy for reward calculation
+    var rewardStrategy: RewardStrategy = DefaultRewardStrategy()
+    
     init() {
         self.obs_agent1 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         self.obs_agent2 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -90,19 +93,19 @@ class AIEnv {
             if action < 10 {
                 obs_agent1[action] = 0.0
                 agent1_round_cards.append(action + 1)
-                reward.0 += 0.2 // Reward for playing a card
+                reward.0 += rewardStrategy.getStepReward(agentId: true, action: action, isPass: false)
             } else {
                 agent1_has_passed = true
-                reward.0 -= 1.0 // Stronger penalty for passing
+                reward.0 += rewardStrategy.getStepReward(agentId: true, action: action, isPass: true)
             }
         } else { // Agent 2
             if action < 10 {
                 obs_agent2[action] = 0.0
                 agent2_round_cards.append(action + 1)
-                reward.1 += 0.2 // Reward for playing a card
+                reward.1 += rewardStrategy.getStepReward(agentId: false, action: action, isPass: false)
             } else {
                 agent2_has_passed = true
-                reward.1 -= 1.0 // Stronger penalty for passing
+                reward.1 += rewardStrategy.getStepReward(agentId: false, action: action, isPass: true)
             }
         }
         
@@ -119,20 +122,16 @@ class AIEnv {
             
             print("End of Round \(round). Scores: Agent1=\(round_score1), Agent2=\(round_score2)")
             
-            let score_diff = Float(round_score1 - round_score2)
-            let scaled_diff = score_diff / 55.0
-            
             if round_score1 > round_score2 {
                 agent1_wins += 1
-                reward.0 += (1.0 + scaled_diff)
-                reward.1 += (-1.0 - scaled_diff)
             } else if round_score2 > round_score1 {
                 agent2_wins += 1
-                reward.0 += (-1.0 + scaled_diff)
-                reward.1 += (1.0 - scaled_diff)
-            } else {
-                // Draw
             }
+            
+            // Calculate Round End Reward
+            let (r1, r2) = rewardStrategy.getRoundEndReward(roundScore1: round_score1, roundScore2: round_score2)
+            reward.0 += r1
+            reward.1 += r2
             
             // Update history
             agent1_score_history = score1_total
@@ -141,14 +140,10 @@ class AIEnv {
             // Check Game Over
             if round == 3 {
                 fin = true
-                // Bonus reward for winning game
-                if agent1_wins > agent2_wins {
-                    reward.0 += 5.0
-                    reward.1 -= 5.0
-                } else if agent2_wins > agent1_wins {
-                    reward.0 -= 5.0
-                    reward.1 += 5.0
-                }
+                // Calculate Game End Reward
+                let (g1, g2) = rewardStrategy.getGameEndReward(agent1Wins: agent1_wins, agent2Wins: agent2_wins)
+                reward.0 += g1
+                reward.1 += g2
             } else {
                 showRoundResult = true
                 // Prepare for next round
@@ -189,13 +184,10 @@ class AIEnv {
         
         // Bonus reward for winning game
         var bonus: (Float, Float) = (0.0, 0.0)
-        if agent1_wins > agent2_wins {
-            bonus.0 += 5.0
-            bonus.1 -= 5.0
-        } else if agent2_wins > agent1_wins {
-            bonus.0 -= 5.0
-            bonus.1 += 5.0
-        }
+        let (g1, g2) = rewardStrategy.getGameEndReward(agent1Wins: agent1_wins, agent2Wins: agent2_wins)
+        bonus.0 += g1
+        bonus.1 += g2
+        
         self.last_reward = bonus
         
         fin = true

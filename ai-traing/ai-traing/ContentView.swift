@@ -90,7 +90,9 @@ struct TrainingView: View {
     @State private var isTraining: Bool = false
     @State private var logMessage: String = "Ready to train"
     @State private var lastReward: String = "0.0"
+    @State private var lastLoss: String = "0.0"
     @State private var rewardHistory: [RewardPoint] = []
+    @State private var lossHistory: [LossPoint] = []
     
     @State private var isAlwaysTraining: Bool = false
     @State private var currentAgent: PPOAgent?
@@ -99,6 +101,12 @@ struct TrainingView: View {
         let id = UUID()
         let episode: Int
         let reward: Float
+    }
+    
+    struct LossPoint: Identifiable {
+        let id = UUID()
+        let episode: Int
+        let loss: Float
     }
     
     // PPO Hyperparameters (Read-only for training context or passed down)
@@ -116,23 +124,28 @@ struct TrainingView: View {
                 if isTraining {
                     
                     VStack(spacing: 20) {
-                        if isAlwaysTraining {
-                            ProgressView() {
-                                Text("Training in Progress (Infinite)")
-                            }
-                            Text("Episodes Completed: \(Int(rewardHistory.last?.episode ?? 0))")
-                                .font(.headline)
-                        } else {
-                            ProgressView(value: progress, total: Double(episodeCount)) {
-                                Text("Training Progress")
-                            } currentValueLabel: {
-                                Text("\(Int(progress)) / \(episodeCount) Episodes")
-                            }
-                            .progressViewStyle(.linear)
-                        }
+//                        if isAlwaysTraining {
+//                            ProgressView()
+//                            Text("Episodes Completed: \(Int(rewardHistory.last?.episode ?? 0))")
+//                                .font(.headline)
+//                                .padding()
+//                        } else {
+//                            ProgressView(value: progress, total: Double(episodeCount)) {
+//                                Text("Training Progress")
+//                            } currentValueLabel: {
+//                                Text("\(Int(progress)) / \(episodeCount) Episodes")
+//                            }
+//                            .progressViewStyle(.linear)
+//                        }
 //                        .padding()
                         
                         if !rewardHistory.isEmpty {
+                            Text("Reward History")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                            
                             Chart(rewardHistory) { point in
                                 LineMark(
                                     x: .value("Episode", point.episode),
@@ -154,7 +167,41 @@ struct TrainingView: View {
                                 )
                                 .interpolationMethod(.catmullRom)
                             }
-                            .frame(height: 200)
+                            .frame(height: 150)
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(12)
+                        }
+                        
+                        if !lossHistory.isEmpty {
+                            Text("Loss History")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                            
+                            Chart(lossHistory) { point in
+                                LineMark(
+                                    x: .value("Episode", point.episode),
+                                    y: .value("Loss", point.loss)
+                                )
+                                .foregroundStyle(.red)
+                                .interpolationMethod(.catmullRom)
+                                
+                                AreaMark(
+                                    x: .value("Episode", point.episode),
+                                    y: .value("Loss", point.loss)
+                                )
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.red.opacity(0.3), .clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .interpolationMethod(.catmullRom)
+                            }
+                            .frame(height: 150)
                             .padding()
                             .background(Color.white.opacity(0.05))
                             .cornerRadius(12)
@@ -164,9 +211,25 @@ struct TrainingView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         
-                        Text("Last Reward: \(lastReward)")
-                            .font(.headline)
-                            .foregroundStyle(.white)
+                        HStack(spacing: 20) {
+                            VStack {
+                                Text("Last Reward")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(lastReward)
+                                    .font(.headline)
+                                    .foregroundStyle(.blue)
+                            }
+                            
+                            VStack {
+                                Text("Last Loss")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(lastLoss)
+                                    .font(.headline)
+                                    .foregroundStyle(.red)
+                            }
+                        }
                         
                         Button {
                             logMessage = "Stopping after current episode..."
@@ -235,6 +298,7 @@ struct TrainingView: View {
         isTraining = true
         progress = 0
         rewardHistory.removeAll()
+        lossHistory.removeAll()
         logMessage = "Initializing Environment..."
         
         // Capture configuration on MainActor to avoid async access warnings in detached task
@@ -278,7 +342,7 @@ struct TrainingView: View {
             
             let episodesToRun = configIsAlwaysTraining ? -1 : configEpisodeCount
             
-            await agent.run(num_episodes: episodesToRun) { completed, reward in
+            await agent.run(num_episodes: episodesToRun) { completed, reward, loss in
                 Task { @MainActor in
                     if !configIsAlwaysTraining {
                         self.progress = Double(completed)
@@ -288,15 +352,18 @@ struct TrainingView: View {
                     }
                     
                     self.lastReward = String(format: "%.2f", reward)
+                    self.lastLoss = String(format: "%.4f", loss)
                     self.rewardHistory.append(RewardPoint(episode: completed, reward: reward))
+                    self.lossHistory.append(LossPoint(episode: completed, loss: loss))
                     
                     // Keep chart clean
                     if self.rewardHistory.count > 100 {
                         self.rewardHistory.removeFirst()
+                        self.lossHistory.removeFirst()
                     }
                     
                     if completed % 10 == 0 {
-                        self.logMessage = "Completed \(completed) episodes..."
+                        self.logMessage = "Episode \(completed): Reward \(String(format: "%.2f", reward)), Loss \(String(format: "%.4f", loss))"
                     }
                 }
             }
@@ -382,7 +449,12 @@ struct RuleRow: View {
 }
 
 struct HackerTerminalView: View {
-    @State private var logs: [String] = []
+    struct LogEntry: Identifiable {
+        let id = UUID()
+        let message: String
+    }
+    
+    @State private var logs: [LogEntry] = []
     // Use a timer to generate logs
     let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
     
@@ -393,8 +465,8 @@ struct HackerTerminalView: View {
             GeometryReader { geometry in
                 VStack(alignment: .leading, spacing: 2) {
                     Spacer()
-                    ForEach(logs, id: \.self) { log in
-                        Text(log)
+                    ForEach(logs) { log in
+                        Text(log.message)
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundColor(.green)
                             .lineLimit(1)
@@ -419,7 +491,7 @@ struct HackerTerminalView: View {
         }
     }
     
-    func generateRandomLog() -> String {
+    func generateRandomLog() -> LogEntry {
         let commands: [String] = [
             "INITIALIZING_NEURAL_NET...",
             "BYPASSING_FIREWALL...",
@@ -433,15 +505,17 @@ struct HackerTerminalView: View {
             "SYSTEM_OVERRIDE: TRUE"
         ]
         
+        let message: String
         if Bool.random() {
-            return commands.randomElement()!
+            message = commands.randomElement()!
         } else {
             // Generate random hex/binary
             let chars = "01"
             let len = Int.random(in: 20...40)
             let randomStr = String((0..<len).map { _ in chars.randomElement()! })
-            return "0x\(String(Int.random(in: 1000...9999), radix: 16).uppercased()) :: \(randomStr)"
+            message = "0x\(String(Int.random(in: 1000...9999), radix: 16).uppercased()) :: \(randomStr)"
         }
+        return LogEntry(message: message)
     }
 }
 
@@ -502,6 +576,135 @@ struct MatrixRainView: View {
     }
 }
 
+struct RewardEditorView: View {
+    @Environment(\.dismiss) var dismiss
+    @Environment(AIEnv.self) var gameEnv
+    
+    @State private var code: String = """
+// JavaScript Reward Strategy
+// Note: Use JavaScript syntax.
+
+function getStepReward(agentId, action, isPass) {
+    // agentId: true (Agent 1), false (Agent 2)
+    // action: 0-9 (Card 1-10), 10 (Pass)
+    // isPass: boolean
+    
+    if (!isPass) {
+        return 0.2; // Reward for playing a card
+    } else {
+        return -1.0; // Penalty for passing
+    }
+}
+
+function getRoundEndReward(roundScore1, roundScore2) {
+    // Returns [agent1Reward, agent2Reward]
+    
+    var diff = roundScore1 - roundScore2;
+    var scaled = diff / 55.0;
+    
+    if (roundScore1 > roundScore2) {
+        return [1.0 + scaled, -1.0 - scaled];
+    } else if (roundScore2 > roundScore1) {
+        return [-1.0 + scaled, 1.0 - scaled];
+    } else {
+        return [0.0, 0.0];
+    }
+}
+
+function getGameEndReward(agent1Wins, agent2Wins) {
+    // Returns [agent1Reward, agent2Reward]
+    
+    if (agent1Wins > agent2Wins) {
+        return [5.0, -5.0];
+    } else if (agent2Wins > agent1Wins) {
+        return [-5.0, 5.0];
+    }
+    return [0.0, 0.0];
+}
+"""
+    @State private var errorMessage: String? = nil
+    @State private var showSuccess: Bool = false
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("Edit Reward Logic (JavaScript)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                TextEditor(text: $code)
+                    .font(.system(.body, design: .monospaced))
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                    .padding()
+                
+                if let error = errorMessage {
+                    Text("Error: \(error)")
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        .padding(.horizontal)
+                }
+                
+                if showSuccess {
+                    Text("Successfully updated reward strategy!")
+                        .foregroundColor(.green)
+                        .font(.caption)
+                        .padding(.horizontal)
+                }
+                
+                Button("Apply Changes") {
+                    applyChanges()
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+                .padding()
+            }
+            .navigationTitle("Reward Function")
+            .toolbar {
+                Button("Close") {
+                    dismiss()
+                }
+            }
+        }
+    }
+    
+    func applyChanges() {
+        errorMessage = nil
+        showSuccess = false
+        
+        do {
+            let newStrategy = try JSRewardStrategy(jsCode: code)
+            // If successful, update environment
+            gameEnv.rewardStrategy = newStrategy
+            showSuccess = true
+        } catch {
+            errorMessage = error.localizedDescription
+            // Revert to default if needed, or just show error
+            // User asked to "cancel edits" if error -> effectively we just don't apply it
+            // If we want to force revert the text:
+            // code = ... (default)
+            // But usually better to let user fix it.
+            // The prompt says: "把他的編輯全部取消 用回預設的" (Cancel all edits, use default)
+            // So we should reset the strategy to default and maybe reset the text?
+            
+            print("Reverting to default strategy due to error: \(error)")
+            gameEnv.rewardStrategy = DefaultRewardStrategy()
+            
+            // Optional: Reset text to default template if strictly following "cancel edits"
+            // But that might be annoying if it was just a typo.
+            // I will interpret "cancel edits" as "do not apply the broken code and ensure the active strategy is safe".
+        }
+    }
+}
+
 struct ContentView: View {
 
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
@@ -509,6 +712,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showTraining = false
     @State private var showHowToPlay = false
+    @State private var showRewardEditor = false
     
     let startWords = [
         "這是一個跟你的agent訓練的遊戲",
@@ -553,6 +757,10 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showHowToPlay) {
             HowToPlayView()
+        }
+        .sheet(isPresented: $showRewardEditor) {
+            RewardEditorView()
+                .environment(gameEnv)
         }
     }
     
@@ -656,6 +864,10 @@ struct ContentView: View {
                         
                         MenuButton(title: "Settings", icon: "gearshape.fill", color: .gray) {
                             showSettings = true
+                        }
+                        
+                        MenuButton(title: "Reward Function", icon: "function", color: .orange) {
+                            showRewardEditor = true
                         }
                     }
                     .padding(.horizontal, 40)

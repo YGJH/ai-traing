@@ -197,7 +197,7 @@ class PPOAgent {
         return probs.count - 1
     }
 
-    func step_one(deterministic: Bool = false) -> (Int, Bool, Bool) {
+    func step_one() -> (Int, Bool, Bool) {
         var finished = false
         var roundEnded = false
         var action = 0
@@ -268,12 +268,8 @@ class PPOAgent {
             }
         }
         
-        if deterministic {
-            action = argmax(normalized_probs)
-        } else {
-            action = sample(normalized_probs)
-        }
-        
+        action = argmax(normalized_probs)
+
         let prob = normalized_probs[action]
 
         // Execute action in environment
@@ -297,10 +293,10 @@ class PPOAgent {
         return (action, finished, roundEnded)
     }
     
-    func train() {
+    func train() -> Float {
         if !trajectories.isEmpty {
             print("🧠 Starting PPO Training with \(trajectories.count) steps...")
-            trainPPOClip(trajectories: trajectories)
+            let loss = trainPPOClip(trajectories: trajectories)
             trajectories.removeAll()
             
             // Save model
@@ -311,8 +307,10 @@ class PPOAgent {
                 print("❌ Failed to save model: \(error)")
             }
             
-            print("✅ Training Complete.")
+            print("✅ Training Complete. Loss: \(loss)")
+            return loss
         }
+        return 0.0
     }
     
     
@@ -330,7 +328,7 @@ class PPOAgent {
         let opp_score = agent_id ? s2 : s1
         
         // If we are winning, pass to save cards/maintain lead
-        if my_score > opp_score && agent_id == false{
+        if my_score > opp_score && agent_id == false || my_score > 35 || Float.random(in: 0.0..<1.0) < 0.2{
             return 10 // Pass
         } else if my_score > opp_score {
             my_score = max(my_score - 10, 0)
@@ -374,7 +372,7 @@ class PPOAgent {
         return best_action
     }
     
-    func run(num_episodes: Int, onProgress: ((Int, Float) -> Void)? = nil) async {
+    func run(num_episodes: Int, onProgress: ((Int, Float, Float) -> Void)? = nil) async {
         
         // Create opponent for self-play (Agent 2 if self is Agent 1, and vice versa)
         let opponent = PPOAgent(
@@ -439,7 +437,7 @@ class PPOAgent {
                 // Execute action
                 if acting_agent_id == self.agent_id {
                     // Self acts (Training: use sampling)
-                    let (_, finished, roundEnded) = self.step_one(deterministic: false)
+                    let (_, finished, roundEnded) = self.step_one()
                     fin = finished
                     
                     if roundEnded {
@@ -469,7 +467,7 @@ class PPOAgent {
                         }
                     } else {
                         // Self-Play (Stochastic)
-                        let (_, finished, roundEnded) = opponent.step_one(deterministic: false)
+                        let (_, finished, roundEnded) = opponent.step_one()
                         fin = finished
                         
                         if roundEnded {
@@ -493,14 +491,14 @@ class PPOAgent {
             let episodeReward = self.trajectories.reduce(0) { $0 + $1.reward }
 
             // Train on trajectories from self perspective only
-            trainPPOClip(trajectories: self.trajectories)
+            let loss = trainPPOClip(trajectories: self.trajectories)
             self.trajectories.removeAll()
             
             // Clear opponent trajectories (used in self-play mode)
             opponent.trajectories.removeAll()
             
             // Update progress
-            onProgress?(episode + 1, episodeReward)
+            onProgress?(episode + 1, episodeReward, loss)
             
             // Periodic Save (every 50 episodes)
             if (episode + 1) % 50 == 0 {
@@ -600,7 +598,12 @@ class PPOAgent {
         return s
     }
 
-    func trainPPOClip(trajectories: [Trajectory]) {
+    func trainPPOClip(trajectories: [Trajectory]) -> Float {
+        if trajectories.isEmpty {
+            print("⚠️ Warning: No trajectories to train on.")
+            return 0.0
+        }
+        
         var trajs = trajectories
         computeGAE(trajectories: &trajs)
         
@@ -611,9 +614,11 @@ class PPOAgent {
         let advantages = trajs.map { $0.advantage }
         
         let n = states.count
+        var totalAvgLoss: Float = 0.0
         
         for _ in 0..<train_epochs {
             model.zeroGrads()
+            var epochLoss: Float = 0.0
             
             for i in 0..<n {
                 let s = states[i]
@@ -624,19 +629,33 @@ class PPOAgent {
                 
                 let (probs, v) = model.forward(x: s)
                 
+                // --- Calculate Scalar Loss for Reporting ---
+                let prob = probs[a]
+                let logP = log(prob + 1e-10)
+                let ratio = exp(logP - oldLogP)
+                let unclipped = ratio * adv
+                let clipped = min(max(ratio, 1.0 - clip_coef), 1.0 + clip_coef) * adv
+                let policyObjective = min(unclipped, clipped)
+                
+                let valueLoss = 0.5 * value_coef * pow(v - ret, 2)
+                
+                var entropy: Float = 0
+                for p in probs {
+                    if p > 1e-10 { entropy -= p * log(p) }
+                }
+                let entropyBonus = entropy_coef * entropy
+                
+                // Total Loss = -PolicyObjective + ValueLoss - EntropyBonus
+                let stepLoss = -policyObjective + valueLoss - entropyBonus
+                epochLoss += stepLoss
+                
                 // --- Value Head Gradients ---
                 // Loss = 0.5 * value_coef * (v - ret)^2
                 // dLoss/dv = value_coef * (v - ret)
                 let dValue = value_coef * (v - ret) / Float(n)
                 
-                // --- Policy Head Gradients ---
-                let prob = probs[a]
-                let logP = log(prob + 1e-10)
-                let ratio = exp(logP - oldLogP)
                 
                 var dLoss_dProb_a: Float = 0
-                let unclipped = ratio * adv
-                let clipped = min(max(ratio, 1.0 - clip_coef), 1.0 + clip_coef) * adv
                 
                 // We want to maximize Objective, so minimize Loss = -Objective
                 // If unclipped < clipped (meaning unclipped is the active constraint in min), gradient flows
@@ -684,7 +703,12 @@ class PPOAgent {
             
             model.copyGradientsTo(params: optimizer.params)
             optimizer.step()
+            
+            let avgEpochLoss = epochLoss / Float(n)
+            totalAvgLoss += avgEpochLoss
+            // print("  Epoch \(_+1) Loss: \(avgEpochLoss)")
         }
+        return totalAvgLoss / Float(train_epochs)
     }
     
     func conjugateGradient(b: [Float],
