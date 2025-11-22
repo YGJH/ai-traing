@@ -34,36 +34,6 @@
             endingLineNumber = "58"
             landmarkName = "PPOAgent"
             landmarkType = "3">
-            <Locations>
-               <Location
-                  uuid = "2B8B6779-8E92-41F2-A1E3-D39A72DBFAA5 - 3835faba77c7de0"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "ai_traing.PPOAgent.__allocating_init(action_dim: Swift.Int, hidden_size: Swift.Int, gamma: Swift.Float, gae_lambda: Swift.Float, clip_coef: Swift.Float, value_coef: Swift.Float, entropy_coef: Swift.Float, lr: Swift.Double, train_epochs: Swift.Int, max_grad_norm: Swift.Float, agent_id: Swift.Bool, turn: Swift.Int, env: ai_traing.AIEnv) -&gt; ai_traing.PPOAgent"
-                  moduleName = "ai-traing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/user20/Desktop/ai-traing/ai-traing/PPOAgent.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "0"
-                  endingLineNumber = "0">
-               </Location>
-               <Location
-                  uuid = "2B8B6779-8E92-41F2-A1E3-D39A72DBFAA5 - c0c596cc5cfac1c"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "ai_traing.PPOAgent.init(action_dim: Swift.Int, hidden_size: Swift.Int, gamma: Swift.Float, gae_lambda: Swift.Float, clip_coef: Swift.Float, value_coef: Swift.Float, entropy_coef: Swift.Float, lr: Swift.Double, train_epochs: Swift.Int, max_grad_norm: Swift.Float, agent_id: Swift.Bool, turn: Swift.Int, env: ai_traing.AIEnv) -&gt; ai_traing.PPOAgent"
-                  moduleName = "ai-traing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/user20/Desktop/ai-traing/ai-traing/PPOAgent.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "55"
-                  endingLineNumber = "55">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

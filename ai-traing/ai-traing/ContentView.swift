@@ -18,6 +18,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     
     @AppStorage("isSoundEnabled") private var isSoundEnabled = true
+    @AppStorage("isBGMEnabled") private var isBGMEnabled = true
     
     // PPO Hyperparameters
     @AppStorage("gae_lambda") private var gae_lambda: Double = 0.95
@@ -34,6 +35,7 @@ struct SettingsView: View {
                 Section(header: Text("Game Settings")) {
                     Toggle("Player Goes First (Player is Agent 1)", isOn: $isPlayerFirst)
                     Toggle("Enable Sound Effects", isOn: $isSoundEnabled)
+                    Toggle("Enable Background Music", isOn: $isBGMEnabled)
                 }
                 
                 Section(header: Text("Model Architecture")) {
@@ -708,6 +710,7 @@ function getGameEndReward(agent1Wins, agent2Wins) {
 struct ContentView: View {
 
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
+    @AppStorage("isBGMEnabled") private var isBGMEnabled = true
     @AppStorage("isPlayerFirst") private var isPlayerFirst = true
     @State private var showSettings = false
     @State private var showTraining = false
@@ -743,6 +746,12 @@ struct ContentView: View {
             }
         }
         .environment(gameEnv)
+        .onAppear {
+            BGMManager.shared.updateState()
+        }
+        .onChange(of: isBGMEnabled) {
+            BGMManager.shared.updateState()
+        }
         .animation(.spring, value: hasCompletedOnboarding)
         .simultaneousGesture(
             TapGesture().onEnded {
@@ -944,6 +953,46 @@ class SoundManager {
             player?.play()
         } catch {
             print("Error playing sound: \(error.localizedDescription)")
+        }
+    }
+}
+
+class BGMManager {
+    static let shared = BGMManager()
+    var player: AVAudioPlayer?
+
+    func playBGM() {
+        guard let url = Bundle.main.url(forResource: "bgm", withExtension: "mp3") else {
+            print("BGM file not found")
+            return
+        }
+        
+        if player != nil && player!.isPlaying { return }
+        
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            
+            player = try AVAudioPlayer(contentsOf: url)
+            player?.numberOfLoops = -1 // Loop indefinitely
+            player?.volume = 0.3 // Lower volume for background music
+            player?.prepareToPlay()
+            player?.play()
+        } catch {
+            print("Error playing BGM: \(error)")
+        }
+    }
+
+    func stopBGM() {
+        player?.stop()
+    }
+    
+    func updateState() {
+        let isEnabled = UserDefaults.standard.object(forKey: "isBGMEnabled") as? Bool ?? true
+        if isEnabled {
+            playBGM()
+        } else {
+            stopBGM()
         }
     }
 }
