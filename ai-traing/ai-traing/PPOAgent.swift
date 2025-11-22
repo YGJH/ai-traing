@@ -57,6 +57,14 @@ class PPOAgent {
     var agent_id: Bool = true
     var agent_has_output: Int
     let max_opponent_can_output: Int = 55
+    
+    // Control flag for infinite training
+    var shouldStop: Bool = false
+    
+    func stop() {
+        shouldStop = true
+    }
+    
     init(
         action_dim: Int = 11,
         hidden_size: Int = 32,
@@ -229,9 +237,13 @@ class PPOAgent {
                 return my_obs[i] == 1 ? p : 0.0 // Zero probability for invalid moves
             } else {
                 // Pass action is always valid
-                // But we should discourage passing if we have cards to play, unless it's strategic
-                // For random initialization, this might be too high.
-                // Let's not manually bias it too much, but ensure it's not the ONLY option.
+                // But we should discourage passing if we have cards to play
+                var hasCards = false
+                for k in 0..<10 { if my_obs[k] == 1 { hasCards = true; break } }
+                
+                if hasCards {
+                    return p * 0.05 // Heavily discourage passing if cards are available
+                }
                 return p
             }
         }
@@ -277,7 +289,7 @@ class PPOAgent {
             logProb: log(prob + 1e-10), // Avoid log(0)
             value: value,
             reward: Float(self.agent_id ? agent1_reward : agent2_reward),
-            done: roundEnded
+            done: fin
         )
         self.trajectories.append(traj)
         finished = fin
@@ -312,7 +324,57 @@ class PPOAgent {
         self.agent_has_output = 0
     }
     
-    func run(num_episodes: Int, onProgress: ((Int) -> Void)? = nil) async {
+    func heuristic_action(agent_id: Bool) -> Int {
+        let (s1, s2) = env.get_round_scores()
+        var my_score = agent_id ? s1 : s2
+        let opp_score = agent_id ? s2 : s1
+        
+        // If we are winning, pass to save cards/maintain lead
+        if my_score > opp_score && agent_id == false{
+            return 10 // Pass
+        } else if my_score > opp_score {
+            my_score = max(my_score - 10, 0)
+        }
+        
+        // If losing or tied, try to win by 1 point (or catch up)
+        let diff = opp_score - my_score
+        let target = diff + 1
+        
+        let my_obs = agent_id ? env.obs_agent1 : env.obs_agent2
+        
+        // Find smallest card >= target
+        var best_action = -1
+        
+        // 1. Try to find a card that flips the lead
+        for i in 0..<10 {
+            if my_obs[i] == 1.0 { // Available
+                let cardVal = i + 1
+                if cardVal >= target {
+                    best_action = i
+                    break // Found smallest sufficient card
+                }
+            }
+        }
+        
+        // 2. If no card can flip lead, play smallest available card to catch up (reduce loss margin)
+        if best_action == -1 {
+            for i in 0..<10 {
+                if my_obs[i] == 1.0 {
+                    best_action = i
+                    break
+                }
+            }
+        }
+        
+        // 3. If no cards available, must pass
+        if best_action == -1 {
+            return 10
+        }
+        
+        return best_action
+    }
+    
+    func run(num_episodes: Int, onProgress: ((Int, Float) -> Void)? = nil) async {
         
         // Create opponent for self-play (Agent 2 if self is Agent 1, and vice versa)
         let opponent = PPOAgent(
@@ -332,7 +394,17 @@ class PPOAgent {
             env: self.env
         )
         
-        for episode in 0..<num_episodes{
+        var episode = 0
+        self.shouldStop = false
+        
+        while true {
+            // Check termination conditions
+            if num_episodes > 0 && episode >= num_episodes { break }
+            if shouldStop { 
+                print("🛑 Training stopped by user request.")
+                break 
+            }
+            
             // Sync opponent model with self model
             opponent.model = self.model 
 
@@ -370,22 +442,24 @@ class PPOAgent {
                     if roundEnded {
                         // Self caused round end. Opponent (who passed) needs reward update.
                         let oppReward = self.agent_id ? self.env.last_reward.1 : self.env.last_reward.0
-                        if let lastTraj = opponent.trajectories.last {
-                            lastTraj.reward += oppReward
-                            lastTraj.done = true
-                        }
+                        // Heuristic opponent doesn't track trajectories, so no update needed for it
                     }
                 } else {
-                    // Opponent acts (Training: use sampling)
-                    let (_, finished, roundEnded) = opponent.step_one(deterministic: false)
+                    // Opponent acts (Heuristic Strategy)
+                    let action = self.heuristic_action(agent_id: acting_agent_id)
+                    
+                    // Execute directly in env
+                    let old_turn = now_turn
+                    let (_, _, _, _, new_turn, _, finished) = self.env.step(agent_id: acting_agent_id, action: action)
                     fin = finished
+                    let roundEnded = (new_turn != old_turn) || fin
                     
                     if roundEnded {
                         // Opponent caused round end. Self (who passed) needs reward update.
                         let myReward = self.agent_id ? self.env.last_reward.0 : self.env.last_reward.1
                         if let lastTraj = self.trajectories.last {
                             lastTraj.reward += myReward
-                            lastTraj.done = true
+                            lastTraj.done = fin
                         }
                     }
                 }
@@ -396,15 +470,31 @@ class PPOAgent {
                 }
             }
             
-            // Train on trajectories from both perspectives
+            // Calculate total reward for this episode
+            let episodeReward = self.trajectories.reduce(0) { $0 + $1.reward }
+
+            // Train on trajectories from self perspective only
             trainPPOClip(trajectories: self.trajectories)
             self.trajectories.removeAll()
             
-            trainPPOClip(trajectories: opponent.trajectories)
-            opponent.trajectories.removeAll()
+            // Opponent is heuristic, no training needed
+            // trainPPOClip(trajectories: opponent.trajectories)
+            // opponent.trajectories.removeAll()
             
             // Update progress
-            onProgress?(episode + 1)
+            onProgress?(episode + 1, episodeReward)
+            
+            // Periodic Save (every 50 episodes)
+            if (episode + 1) % 50 == 0 {
+                do {
+                    try model.save()
+                    print("💾 Auto-saving model at episode \(episode + 1)...")
+                } catch {
+                    print("❌ Failed to auto-save model: \(error)")
+                }
+            }
+            
+            episode += 1
             
             // Yield to allow UI updates
             await Task.yield()

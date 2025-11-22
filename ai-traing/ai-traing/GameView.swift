@@ -82,6 +82,226 @@ struct Card: View {
     }
 }
 
+struct GameOverView: View {
+    let winner: String
+    let playerWins: Int
+    let aiWins: Int
+    let playerScore: Int
+    let aiScore: Int
+    let playerRemaining: Int
+    let aiRemaining: Int
+    let onPlayAgain: () -> Void
+    let onBack: () -> Void
+    
+    var isPlayerWin: Bool { winner.contains("You") }
+    
+    var body: some View {
+        ZStack {
+            // Backdrop
+            Color.black.opacity(0.7).ignoresSafeArea()
+            
+            VStack(spacing: 25) {
+                // Title
+                Text(winner.uppercased())
+                    .font(.system(size: 48, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: isPlayerWin ? [.yellow, .orange] : [.red, .purple],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: isPlayerWin ? .orange.opacity(0.5) : .red.opacity(0.5), radius: 10, x: 0, y: 5)
+                
+                // Score Board
+                VStack(spacing: 15) {
+                    Text("Match Result")
+                        .font(.headline)
+                        .foregroundColor(.gray)
+                    
+                    HStack(spacing: 40) {
+                        VStack {
+                            Text("\(playerWins)")
+                                .font(.system(size: 50, weight: .bold))
+                                .foregroundColor(.cyan)
+                            Text("You")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Text("-")
+                            .font(.system(size: 40, weight: .light))
+                            .foregroundColor(.white.opacity(0.3))
+                        
+                        VStack {
+                            Text("\(aiWins)")
+                                .font(.system(size: 50, weight: .bold))
+                                .foregroundColor(.pink)
+                            Text("AI")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Divider().background(Color.white.opacity(0.2))
+                    
+                    // Details
+                    HStack(spacing: 30) {
+                        VStack(spacing: 5) {
+                            Text("Last Round")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            VStack(spacing: 2) {
+                                Text("You: \(playerScore)")
+                                    .foregroundColor(.cyan)
+                                Text("AI: \(aiScore)")
+                                    .foregroundColor(.pink)
+                            }
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                        }
+                        
+                        Rectangle()
+                            .fill(Color.white.opacity(0.2))
+                            .frame(width: 1, height: 40)
+                        
+                        VStack(spacing: 5) {
+                            Text("Remaining")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            VStack(spacing: 2) {
+                                Text("You: \(playerRemaining)")
+                                    .foregroundColor(.cyan)
+                                Text("AI: \(aiRemaining)")
+                                    .foregroundColor(.pink)
+                            }
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                        }
+                    }
+                }
+                .padding(25)
+                .background(Color(UIColor.systemGray6).opacity(0.1))
+                .cornerRadius(20)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                
+                // Buttons
+                HStack(spacing: 20) {
+                    Button(action: onBack) {
+                        HStack {
+                            Image(systemName: "arrow.left")
+                            Text("Menu")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(minWidth: 120)
+                        .background(Color.gray.opacity(0.3))
+                        .cornerRadius(15)
+                    }
+                    
+                    Button(action: onPlayAgain) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Play Again")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(minWidth: 120)
+                        .background(
+                            LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .cornerRadius(15)
+                        .shadow(color: .blue.opacity(0.3), radius: 5, x: 0, y: 3)
+                    }
+                }
+            }
+            .padding(30)
+            .background(.ultraThinMaterial)
+            .cornerRadius(30)
+            .shadow(color: .black.opacity(0.5), radius: 30, x: 0, y: 10)
+            .padding(.horizontal, 20)
+        }
+    }
+}
+
+struct RoundOverView: View {
+    let roundNumber: Int
+    let playerScore: Int
+    let aiScore: Int
+    let onNextRound: () -> Void
+    
+    var isPlayerWin: Bool { playerScore > aiScore }
+    var isDraw: Bool { playerScore == aiScore }
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.7).ignoresSafeArea()
+            
+            VStack(spacing: 25) {
+                Text(isDraw ? "DRAW" : (isPlayerWin ? "YOU WIN" : "AI WINS"))
+                    .font(.system(size: 40, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: isDraw ? [.gray, .white] : (isPlayerWin ? [.yellow, .orange] : [.red, .purple]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: isPlayerWin ? .orange.opacity(0.5) : .red.opacity(0.5), radius: 10, x: 0, y: 5)
+                
+                Text("Round \(roundNumber)")
+                    .font(.headline)
+                    .foregroundColor(.white.opacity(0.8))
+                
+                HStack(spacing: 40) {
+                    VStack {
+                        Text("\(playerScore)")
+                            .font(.system(size: 60, weight: .bold))
+                            .foregroundColor(.cyan)
+                        Text("You")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Text("-")
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundColor(.white.opacity(0.3))
+                    
+                    VStack {
+                        Text("\(aiScore)")
+                            .font(.system(size: 60, weight: .bold))
+                            .foregroundColor(.pink)
+                        Text("AI")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Button(action: onNextRound) {
+                    HStack {
+                        Text("Next Round")
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding()
+                    .frame(minWidth: 160)
+                    .background(Color.blue)
+                    .cornerRadius(15)
+                    .shadow(radius: 5)
+                }
+            }
+            .padding(40)
+            .background(.ultraThinMaterial)
+            .cornerRadius(30)
+            .shadow(radius: 20)
+        }
+    }
+}
+
 struct GameView: View {
     let onBack: () -> Void
     let isPlayerFirst: Bool
@@ -104,7 +324,7 @@ struct GameView: View {
 
     // 供每張卡片綁定使用狀態（示意用途）
     @State private var cardUsed: [Bool] = Array(repeating: false, count: 10)
-    @StateObject var gameEnv = AIEnv()
+    @Environment(AIEnv.self) var gameEnv
     
     @State var agent: PPOAgent?
     @State var turn = 0
@@ -143,8 +363,44 @@ struct GameView: View {
     // Game Over Alert
     @State private var showGameOverAlert = false
     @State private var gameOverMessage = ""
+    @State private var winnerName = ""
+    @State private var finalScorePlayer = 0
+    @State private var finalScoreAI = 0
+    @State private var lastRoundScorePlayer = 0
+    @State private var lastRoundScoreAI = 0
+    @State private var remainingCardsPlayer = 0
+    @State private var remainingCardsAI = 0
+    
+    // Timer State
+    @State private var timeRemaining = 10
+    @State private var timer: Timer?
+    
+    func startTimer() {
+        stopTimer()
+        guard !already_pass else { return }
+        
+        timeRemaining = 10
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor in
+                if timeRemaining > 0 {
+                    timeRemaining -= 1
+                } else {
+                    stopTimer()
+                    print("⏳ Time's up! Auto-passing.")
+                    already_pass = true
+                    handlePlayerMove(action: 10)
+                }
+            }
+        }
+    }
+    
+    func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
     
     func handleGameEnd() {
+        stopTimer()
         print("🏁 Game Finished. Starting Training...")
         isTraining = true
         
@@ -172,19 +428,35 @@ struct GameView: View {
                 let playerWins = agent_id ? (gameEnv.agent1_wins > gameEnv.agent2_wins) : (gameEnv.agent2_wins > gameEnv.agent1_wins)
                 let aiWins = agent_id ? (gameEnv.agent2_wins > gameEnv.agent1_wins) : (gameEnv.agent1_wins > gameEnv.agent2_wins)
                 
-                let winner = playerWins ? "You Win!" : (aiWins ? "AI Wins!" : "Draw!")
+                if playerWins {
+                    winnerName = "You Win!"
+                } else if aiWins {
+                    winnerName = "AI Wins!"
+                } else {
+                    winnerName = "Draw!"
+                }
                 
-                // Include last round score in the final message
-                // Scores are (Agent1, Agent2)
-                let aiScore = agent_id ? gameEnv.lastRoundScores.1 : gameEnv.lastRoundScores.0
-                let playerScore = agent_id ? gameEnv.lastRoundScores.0 : gameEnv.lastRoundScores.1
+                finalScorePlayer = agent_id ? gameEnv.agent1_wins : gameEnv.agent2_wins
+                finalScoreAI = agent_id ? gameEnv.agent2_wins : gameEnv.agent1_wins
                 
-                let lastRoundInfo = "\nRound \(gameEnv.lastRoundNumber) Score: AI \(aiScore) - \(playerScore) You"
+                lastRoundScorePlayer = agent_id ? gameEnv.lastRoundScores.0 : gameEnv.lastRoundScores.1
+                lastRoundScoreAI = agent_id ? gameEnv.lastRoundScores.1 : gameEnv.lastRoundScores.0
                 
-                let aiTotalWins = agent_id ? gameEnv.agent2_wins : gameEnv.agent1_wins
-                let playerTotalWins = agent_id ? gameEnv.agent1_wins : gameEnv.agent2_wins
+                // Calculate remaining cards sum
+                let playerObs = agent_id ? gameEnv.obs_agent1 : gameEnv.obs_agent2
+                let aiObs = agent_id ? gameEnv.obs_agent2 : gameEnv.obs_agent1
                 
-                gameOverMessage = "\(winner)\nFinal Score: AI \(aiTotalWins) - \(playerTotalWins) You\(lastRoundInfo)"
+                func sumRemaining(_ obs: [Float]) -> Int {
+                    var sum = 0
+                    for i in 0..<obs.count {
+                        if obs[i] == 1.0 { sum += (i + 1) }
+                    }
+                    return sum
+                }
+                
+                remainingCardsPlayer = sumRemaining(playerObs)
+                remainingCardsAI = sumRemaining(aiObs)
+                
                 showGameOverAlert = true
             }
         }
@@ -192,6 +464,7 @@ struct GameView: View {
     
     func resetGame() {
         print("🔄 Resetting Game...")
+        stopTimer()
         let _ = gameEnv.reset(agent_id: agent_id)
         already_pass = false
         playerLastMove = "-"
@@ -201,11 +474,14 @@ struct GameView: View {
         
         if !agent_id {
              runAITurn()
+        } else {
+             startTimer()
         }
     }
 
     func handlePlayerMove(action: Int) {
         guard !isProcessingTurn else { return }
+        stopTimer()
         
         // Update UI
         playerLastMove = (action == 10) ? "Pass" : "\(action + 1)"
@@ -228,6 +504,7 @@ struct GameView: View {
         let aiPassed = agent_id ? ag2Passed : ag1Passed
         if aiPassed {
             print("🤖 AI has passed. Player continues.")
+            startTimer()
             return
         }
         
@@ -306,6 +583,7 @@ struct GameView: View {
                     } else {
                         agent_thinking = false
                         isProcessingTurn = false
+                        startTimer()
                     }
                 }
             } else {
@@ -326,7 +604,7 @@ struct GameView: View {
             .ignoresSafeArea()
             
             // AI Card Display
-            if let aiCard = aiCardNumber {
+            if let _ = aiCardNumber {
                 ZStack {
                     // Glow effect
                     Circle()
@@ -334,8 +612,27 @@ struct GameView: View {
                         .frame(width: 120, height: 120)
                         .blur(radius: 20)
                     
-                    Card(isUsed: .constant(true), xOffset: 0, yOffset: 0, number: aiCard, rotate: 0)
-                        .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
+                    // Mystery Card (Back of card)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(red: 0.1, green: 0.1, blue: 0.3), Color(red: 0.2, green: 0.2, blue: 0.5)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        
+                        // Pattern or Border
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                        
+                        Text("?")
+                            .font(.system(size: 60, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Color.white.opacity(0.3))
+                    }
+                    .frame(width: 90, height: 140)
+                    .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
@@ -451,6 +748,7 @@ struct GameView: View {
                         // Back Button
                         Button {
                             print("🔙 Back button tapped")
+                            stopTimer()
                             onBack()
                         } label: {
                             Image(systemName: "chevron.left.circle.fill")
@@ -495,6 +793,17 @@ struct GameView: View {
                                 .shadow(radius: 2)
                         }
                         .disabled(isProcessingTurn)
+                        
+                        // Timer Display
+                        if !isProcessingTurn && !already_pass {
+                            Text("\(timeRemaining)s")
+                                .font(.system(size: 20, weight: .bold, design: .monospaced))
+                                .foregroundColor(timeRemaining <= 3 ? .red : .white)
+                                .padding(8)
+                                .background(Color.black.opacity(0.5))
+                                .clipShape(Circle())
+                                .transition(.scale)
+                        }
                     }
                     
                     // Row 2: Stats & History
@@ -511,18 +820,18 @@ struct GameView: View {
                                     .foregroundColor(.white.opacity(0.7))
                             }
                             
-                            Text("Sum: \((agent_id ? gameEnv.agent2_round_cards : gameEnv.agent1_round_cards).reduce(0, +))")
+                            Text("Sum: ???")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.yellow)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 4) {
-                                    ForEach((agent_id ? gameEnv.agent2_round_cards : gameEnv.agent1_round_cards), id: \.self) { card in
-                                        Text("\(card)")
+                                    ForEach((agent_id ? gameEnv.agent2_round_cards : gameEnv.agent1_round_cards), id: \.self) { _ in
+                                        Text("?")
                                             .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(.black)
+                                            .foregroundColor(.white.opacity(0.8))
                                             .frame(width: 20, height: 28)
-                                            .background(Color.white.opacity(0.9))
+                                            .background(Color.white.opacity(0.3))
                                             .cornerRadius(3)
                                     }
                                 }
@@ -619,9 +928,46 @@ struct GameView: View {
                 }
                 .zIndex(300)
             }
+            
+            if showGameOverAlert {
+                GameOverView(
+                    winner: winnerName,
+                    playerWins: finalScorePlayer,
+                    aiWins: finalScoreAI,
+                    playerScore: lastRoundScorePlayer,
+                    aiScore: lastRoundScoreAI,
+                    playerRemaining: remainingCardsPlayer,
+                    aiRemaining: remainingCardsAI,
+                    onPlayAgain: {
+                        showGameOverAlert = false
+                        resetGame()
+                    },
+                    onBack: onBack
+                )
+                .zIndex(400)
+            }
+            
+            if gameEnv.showRoundResult {
+                RoundOverView(
+                    roundNumber: gameEnv.lastRoundNumber,
+                    playerScore: agent_id ? gameEnv.lastRoundScores.0 : gameEnv.lastRoundScores.1,
+                    aiScore: agent_id ? gameEnv.lastRoundScores.1 : gameEnv.lastRoundScores.0,
+                    onNextRound: {
+                        gameEnv.showRoundResult = false
+                        if gameEnv.round == 3 {
+                            gameEnv.resolveShowdown()
+                            handleGameEnd()
+                        }
+                    }
+                )
+                .zIndex(350)
+            }
         }
         .onAppear {
                 print("🎮 GameView appeared. isPlayerFirst: \(isPlayerFirst), agent_id: \(agent_id)")
+                // Reset environment for new game session since it's injected from environment
+                let _ = gameEnv.reset(agent_id: agent_id)
+                
                 if agent == nil {
                     print("aaa")
                     agent = PPOAgent(
@@ -650,6 +996,7 @@ struct GameView: View {
                         
                     } else {
                         print("👤 Player goes first!")
+                        startTimer()
                     }
                 }
             }
@@ -658,27 +1005,10 @@ struct GameView: View {
             } message: {
                 Text(alertMessage)
             }
-            .alert("Round \(gameEnv.lastRoundNumber) Result", isPresented: $gameEnv.showRoundResult) {
-                Button("Next Round", role: .cancel) { 
-                    // If we are entering Round 3, trigger Auto Showdown
-                    if gameEnv.round == 3 {
-                        gameEnv.resolveShowdown()
-                        handleGameEnd()
-                    }
-                }
-            } message: {
-                // Correctly display scores based on who is who
-                let aiScore = agent_id ? gameEnv.lastRoundScores.1 : gameEnv.lastRoundScores.0
-                let playerScore = agent_id ? gameEnv.lastRoundScores.0 : gameEnv.lastRoundScores.1
-                Text("AI: \(aiScore) - You: \(playerScore)")
-            }
-            .alert("Game Over", isPresented: $showGameOverAlert) {
-                Button("Play Again", role: .cancel) {
-                    resetGame()
-                }
-            } message: {
-                Text(gameOverMessage)
-            }
+            // Removed standard alert for Round Result in favor of custom view
+            // .alert("Round Result", isPresented: $gameEnv.showRoundResult) { ... }
+            // Removed standard alert for Game Over in favor of custom view
+            // .alert("Game Over", isPresented: $showGameOverAlert) { ... }
     }
 }
 

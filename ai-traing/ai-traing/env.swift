@@ -7,16 +7,16 @@
 
 import Foundation
 import Combine
-import SwiftUI
-import UIKit
+import Observation
 
-class AIEnv: ObservableObject {
-    @Published var obs_agent1: [Float]
-    @Published var obs_agent2: [Float]
-    @Published var fin: Bool
-    @Published var round: Int = 1
-    @Published var agent1_wins: Int = 0
-    @Published var agent2_wins: Int = 0
+@Observable
+class AIEnv {
+    var obs_agent1: [Float]
+    var obs_agent2: [Float]
+    var fin: Bool
+    var round: Int = 1
+    var agent1_wins: Int = 0
+    var agent2_wins: Int = 0
 
     // Internal state flags — do not use @State in ObservableObject
     private var agent1_has_passed: Bool = false
@@ -25,17 +25,17 @@ class AIEnv: ObservableObject {
     private var agent2_has_output: Int = 0
     
     // Track scores from previous rounds to calculate current round score
-    private var agent1_score_history: Int = 0
-    private var agent2_score_history: Int = 0
+    var agent1_score_history: Int = 0
+    var agent2_score_history: Int = 0
     
-    @Published var lastRoundScores: (Int, Int) = (0, 0)
-    @Published var lastRoundNumber: Int = 0
-    @Published var showRoundResult: Bool = false
+    var lastRoundScores: (Int, Int) = (0, 0)
+    var lastRoundNumber: Int = 0
+    var showRoundResult: Bool = false
     
     // Track cards played in the current round
-    @Published var agent1_round_cards: [Int] = []
-    @Published var agent2_round_cards: [Int] = []
-    @Published var last_reward: (Float, Float) = (0.0, 0.0)
+    var agent1_round_cards: [Int] = []
+    var agent2_round_cards: [Int] = []
+    var last_reward: (Float, Float) = (0.0, 0.0)
     
     init() {
         self.obs_agent1 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -72,6 +72,12 @@ class AIEnv: ObservableObject {
         return score
     }
 
+    func get_round_scores() -> (Int, Int) {
+        let s1 = calculate_total_score(obs: obs_agent1) - agent1_score_history
+        let s2 = calculate_total_score(obs: obs_agent2) - agent2_score_history
+        return (s1, s2)
+    }
+
     func get_obs() -> ([Float], [Float],Bool, Bool, Int, (Float, Float), Bool) {
         return (obs_agent1, obs_agent2, agent1_has_passed , agent2_has_passed, round, (0.0, 0.0), fin)
     }
@@ -84,17 +90,19 @@ class AIEnv: ObservableObject {
             if action < 10 {
                 obs_agent1[action] = 0.0
                 agent1_round_cards.append(action + 1)
+                reward.0 += 0.2 // Reward for playing a card
             } else {
                 agent1_has_passed = true
-                reward.0 -= 0.1 // Penalty for passing
+                reward.0 -= 1.0 // Stronger penalty for passing
             }
         } else { // Agent 2
             if action < 10 {
                 obs_agent2[action] = 0.0
                 agent2_round_cards.append(action + 1)
+                reward.1 += 0.2 // Reward for playing a card
             } else {
                 agent2_has_passed = true
-                reward.1 -= 0.1 // Penalty for passing
+                reward.1 -= 1.0 // Stronger penalty for passing
             }
         }
         
@@ -131,7 +139,7 @@ class AIEnv: ObservableObject {
             agent2_score_history = score2_total
             
             // Check Game Over
-            if agent1_wins >= 2 || agent2_wins >= 2 || round == 3 {
+            if round == 3 {
                 fin = true
                 // Bonus reward for winning game
                 if agent1_wins > agent2_wins {
@@ -158,13 +166,12 @@ class AIEnv: ObservableObject {
     }
 
     func resolveShowdown() {
-        // Play all remaining cards
-        for i in 0..<obs_agent1.count { obs_agent1[i] = 0.0 }
-        for i in 0..<obs_agent2.count { obs_agent2[i] = 0.0 }
+        // In Showdown, we consider all remaining cards as played for scoring purposes,
+        // but we do NOT zero them out in 'obs' so they can be counted as "Remaining" in the UI.
         
-        // Calculate final scores
-        let score1_total = calculate_total_score(obs: obs_agent1)
-        let score2_total = calculate_total_score(obs: obs_agent2)
+        // Total possible score (sum of 1..10) is 55.
+        let score1_total = 55
+        let score2_total = 55
         
         let round_score1 = score1_total - agent1_score_history
         let round_score2 = score2_total - agent2_score_history
@@ -179,6 +186,17 @@ class AIEnv: ObservableObject {
         } else if round_score2 > round_score1 {
             agent2_wins += 1
         }
+        
+        // Bonus reward for winning game
+        var bonus: (Float, Float) = (0.0, 0.0)
+        if agent1_wins > agent2_wins {
+            bonus.0 += 5.0
+            bonus.1 -= 5.0
+        } else if agent2_wins > agent1_wins {
+            bonus.0 -= 5.0
+            bonus.1 += 5.0
+        }
+        self.last_reward = bonus
         
         fin = true
     }

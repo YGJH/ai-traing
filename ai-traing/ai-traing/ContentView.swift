@@ -7,6 +7,8 @@
 
 import SwiftUI
 import SwiftData
+import Charts
+import Combine
 
 
 
@@ -83,6 +85,17 @@ struct TrainingView: View {
     @State private var progress: Double = 0
     @State private var isTraining: Bool = false
     @State private var logMessage: String = "Ready to train"
+    @State private var lastReward: String = "0.0"
+    @State private var rewardHistory: [RewardPoint] = []
+    
+    @State private var isAlwaysTraining: Bool = false
+    @State private var currentAgent: PPOAgent?
+    
+    struct RewardPoint: Identifiable {
+        let id = UUID()
+        let episode: Int
+        let reward: Float
+    }
     
     // PPO Hyperparameters (Read-only for training context or passed down)
     @AppStorage("gae_lambda") private var gae_lambda: Double = 0.95
@@ -99,17 +112,71 @@ struct TrainingView: View {
                 if isTraining {
                     
                     VStack(spacing: 20) {
-                        ProgressView(value: progress, total: Double(episodeCount)) {
-                            Text("Training Progress")
-                        } currentValueLabel: {
-                            Text("\(Int(progress)) / \(episodeCount) Episodes")
+                        if isAlwaysTraining {
+                            ProgressView() {
+                                Text("Training in Progress (Infinite)")
+                            }
+                            Text("Episodes Completed: \(Int(rewardHistory.last?.episode ?? 0))")
+                                .font(.headline)
+                        } else {
+                            ProgressView(value: progress, total: Double(episodeCount)) {
+                                Text("Training Progress")
+                            } currentValueLabel: {
+                                Text("\(Int(progress)) / \(episodeCount) Episodes")
+                            }
+                            .progressViewStyle(.linear)
                         }
-                        .progressViewStyle(.linear)
-                        .padding()
+//                        .padding()
+                        
+                        if !rewardHistory.isEmpty {
+                            Chart(rewardHistory) { point in
+                                LineMark(
+                                    x: .value("Episode", point.episode),
+                                    y: .value("Reward", point.reward)
+                                )
+                                .foregroundStyle(.blue)
+                                .interpolationMethod(.catmullRom)
+                                
+                                AreaMark(
+                                    x: .value("Episode", point.episode),
+                                    y: .value("Reward", point.reward)
+                                )
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.blue.opacity(0.3), .clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .interpolationMethod(.catmullRom)
+                            }
+                            .frame(height: 200)
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(12)
+                        }
                         
                         Text(logMessage)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        
+                        Text("Last Reward: \(lastReward)")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        
+                        Button {
+                            logMessage = "Stopping after current episode..."
+                            currentAgent?.stop()
+                        } label: {
+                            Text("Stop Training")
+                                .fontWeight(.bold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                        }
+                        .padding(.horizontal)
                     }
                 } else {
                     VStack(spacing: 20) {
@@ -117,17 +184,24 @@ struct TrainingView: View {
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Stepper("Episodes: \(episodeCount)", value: $episodeCount, in: 10...10000, step: 10)
+                        Toggle("Always Train", isOn: $isAlwaysTraining)
                             .padding()
                             .background(Color.gray.opacity(0.1))
                             .cornerRadius(10)
+                        
+                        if !isAlwaysTraining {
+                            Stepper("Episodes: \(episodeCount)", value: $episodeCount, in: 10...10000, step: 10)
+                                .padding()
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(10)
+                        }
                         
                         Button {
                             startTraining()
                         } label: {
                             HStack {
                                 Image(systemName: "brain.head.profile")
-                                Text("Start Training")
+                                Text(isAlwaysTraining ? "Start Infinite Training" : "Start Training")
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -156,22 +230,37 @@ struct TrainingView: View {
     func startTraining() {
         isTraining = true
         progress = 0
+        rewardHistory.removeAll()
         logMessage = "Initializing Environment..."
+        
+        // Capture configuration on MainActor to avoid async access warnings in detached task
+        let configHiddenSize = hidden_size
+        let configHiddenLayers = hidden_layers
+        let configGaeLambda = gae_lambda
+        let configValueCoef = value_coef
+        let configEntropyCoef = entropy_coef
+        let configLearningRate = learning_rate
+        let configTrainEpochs = train_epochs
+        let configIsAlwaysTraining = isAlwaysTraining
+        let configEpisodeCount = episodeCount
         
         Task.detached(priority: .userInitiated) {
             // Initialize Environment and Agent
+            // Note: AIEnv might be inferred as MainActor if it imports UI frameworks. 
+            // If so, we might need to adjust AIEnv or create it on MainActor.
+            // For now, we create it here. If it warns, we might need to refactor AIEnv.
             let env = AIEnv()
             let agent = PPOAgent(
                 action_dim: 11,
-                hidden_size: hidden_size,
-                hidden_layers: hidden_layers,
+                hidden_size: configHiddenSize,
+                hidden_layers: configHiddenLayers,
                 gamma: 0.95,
-                gae_lambda: Float(gae_lambda),
+                gae_lambda: Float(configGaeLambda),
                 clip_coef: 0.2,
-                value_coef: Float(value_coef),
-                entropy_coef: Float(entropy_coef),
-                lr: learning_rate,
-                train_epochs: train_epochs,
+                value_coef: Float(configValueCoef),
+                entropy_coef: Float(configEntropyCoef),
+                lr: configLearningRate,
+                train_epochs: configTrainEpochs,
                 max_grad_norm: 0.5,
                 agent_id: true, // Train as Agent 1
                 turn: 0,
@@ -179,24 +268,233 @@ struct TrainingView: View {
             )
             
             await MainActor.run {
+                self.currentAgent = agent
                 logMessage = "Training Started..."
             }
             
-            await agent.run(num_episodes: episodeCount) { completed in
+            let episodesToRun = configIsAlwaysTraining ? -1 : configEpisodeCount
+            
+            await agent.run(num_episodes: episodesToRun) { completed, reward in
                 Task { @MainActor in
-                    progress = Double(completed)
+                    if !configIsAlwaysTraining {
+                        self.progress = Double(completed)
+                    } else {
+                        // For infinite training, just show count
+                        self.progress = Double(completed % 100) // Loop progress bar or just show count
+                    }
+                    
+                    self.lastReward = String(format: "%.2f", reward)
+                    self.rewardHistory.append(RewardPoint(episode: completed, reward: reward))
+                    
+                    // Keep chart clean
+                    if self.rewardHistory.count > 100 {
+                        self.rewardHistory.removeFirst()
+                    }
+                    
                     if completed % 10 == 0 {
-                        logMessage = "Completed \(completed) episodes..."
+                        self.logMessage = "Completed \(completed) episodes..."
                     }
                 }
             }
             
             await MainActor.run {
-                isTraining = false
-                logMessage = "Training Complete!"
-                dismiss()
+                self.isTraining = false
+                self.currentAgent = nil
+                self.logMessage = "Training Complete!"
+                if !configIsAlwaysTraining {
+                    self.dismiss()
+                }
             }
         }
+    }
+}
+
+struct HowToPlayView: View {
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 25) {
+                    // Header Image
+                    Image(systemName: "book.fill")
+                        .font(.system(size: 60))
+                        .foregroundStyle(.blue)
+                        .padding()
+                        .background(
+                            Circle()
+                                .fill(Color.blue.opacity(0.1))
+                                .frame(width: 100, height: 100)
+                        )
+                        .padding(.bottom, 10)
+                    
+                    VStack(alignment: .leading, spacing: 20) {
+                        RuleRow(icon: "suit.club.fill", title: "卡牌配置", description: "雙方各自擁有 1 到 10 點的卡牌，共 10 張。")
+                        RuleRow(icon: "flag.2.crossed.fill", title: "三回合對決", description: "遊戲共進行三個回合，採三戰兩勝制。")
+                        RuleRow(icon: "arrow.triangle.2.circlepath", title: "輪流出牌", description: "雙方輪流出牌累積戰力，直到一方選擇 Pass。")
+                        RuleRow(icon: "hand.raised.fill", title: "Pass 機制", description: "一旦選擇 Pass，該回合你將不能再出牌。當雙方都選擇 Pass 時，該回合結束並結算分數。")
+                        RuleRow(icon: "trophy.fill", title: "獲勝條件", description: "每回合點數總和高者勝。贏得更多回合者獲得最終勝利。")
+                    }
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+            }
+            .navigationTitle("遊戲說明")
+            .toolbar {
+                Button("了解") {
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+
+struct RuleRow: View {
+    let icon: String
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 15) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(.blue)
+                .frame(width: 30)
+            
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+struct HackerTerminalView: View {
+    @State private var logs: [String] = []
+    // Use a timer to generate logs
+    let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        ZStack {
+            Color.black
+            
+            GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: 2) {
+                    Spacer()
+                    ForEach(logs, id: \.self) { log in
+                        Text(log)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.green)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottomLeading)
+                .padding(10)
+            }
+        }
+        .frame(width: 300, height: 300)
+        .cornerRadius(15)
+        .overlay(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(Color.green.opacity(0.6), lineWidth: 2)
+        )
+        .shadow(color: .green.opacity(0.3), radius: 20)
+        .onReceive(timer) { _ in
+            logs.append(generateRandomLog())
+            if logs.count > 25 {
+                logs.removeFirst()
+            }
+        }
+    }
+    
+    func generateRandomLog() -> String {
+        let commands: [String] = [
+            "INITIALIZING_NEURAL_NET...",
+            "BYPASSING_FIREWALL...",
+            "ACCESS_GRANTED",
+            "DOWNLOADING_PACKETS...",
+            "DECRYPTING_DATA_STREAM...",
+            "OPTIMIZING_WEIGHTS...",
+            "PPO_AGENT_ACTIVE",
+            "SEARCHING_FOR_VULNERABILITIES...",
+            "ROOT_ACCESS: ENABLED",
+            "SYSTEM_OVERRIDE: TRUE"
+        ]
+        
+        if Bool.random() {
+            return commands.randomElement()!
+        } else {
+            // Generate random hex/binary
+            let chars = "01"
+            let len = Int.random(in: 20...40)
+            let randomStr = String((0..<len).map { _ in chars.randomElement()! })
+            return "0x\(String(Int.random(in: 1000...9999), radix: 16).uppercased()) :: \(randomStr)"
+        }
+    }
+}
+
+struct MatrixRainView: View {
+    let matrixChars = Array("0101010101XYZA@#&!<>?:").map { String($0) }
+    
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            Canvas { context, size in
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                let fontSize: CGFloat = 14
+                let columnCount = Int(size.width / fontSize)
+                
+                for col in 0..<columnCount {
+                    // Deterministic random based on column
+                    let r = Double(col * 12345 + 6789)
+                    let speed = 100.0 + (r.truncatingRemainder(dividingBy: 200.0)) // Speed 100-300
+                    let offset = r.truncatingRemainder(dividingBy: 1000.0)
+                    
+                    // Position
+                    let totalHeight = size.height + 300
+                    let y = (time * speed + offset).truncatingRemainder(dividingBy: totalHeight) - 150
+                    let x = CGFloat(col) * fontSize + fontSize / 2
+                    
+                    // Stream length
+                    let streamLen = 10 + Int(r.truncatingRemainder(dividingBy: 15))
+                    
+                    for i in 0..<streamLen {
+                        let charY = y - CGFloat(i) * fontSize
+                        
+                        if charY > -fontSize && charY < size.height {
+                            // Character selection
+                            // Change character periodically
+                            let charIndex = Int(time * 2 + Double(i) + Double(col)) % matrixChars.count
+                            let char = matrixChars[charIndex]
+                            
+                            // Color
+                            let opacity = max(0, 1.0 - Double(i) / Double(streamLen))
+                            let color: Color
+                            if i == 0 {
+                                color = .white.opacity(opacity)
+                            } else {
+                                color = .green.opacity(opacity)
+                            }
+                            
+                            context.draw(
+                                Text(char)
+                                    .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                                    .foregroundColor(color),
+                                at: CGPoint(x: x, y: charY)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        .ignoresSafeArea()
     }
 }
 
@@ -206,6 +504,7 @@ struct ContentView: View {
     @AppStorage("isPlayerFirst") private var isPlayerFirst = true
     @State private var showSettings = false
     @State private var showTraining = false
+    @State private var showHowToPlay = false
     
     let startWords = [
         "這是一個跟你的agent訓練的遊戲",
@@ -214,6 +513,7 @@ struct ContentView: View {
     @State private var word = ""
     @State private var currentWordIndex: Int = 0
     @State private var showGame: Bool = false
+    @State private var gameEnv = AIEnv()
     
     var body: some View {
         ZStack {
@@ -225,18 +525,25 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
             
+            MatrixRainView()
+                .opacity(0.3)
+            
             if !hasCompletedOnboarding {
                 onboardingView
             } else {
                 mainMenuView
             }
         }
+        .environment(gameEnv)
         .animation(.spring, value: hasCompletedOnboarding)
         .sheet(isPresented: $showSettings) {
             SettingsView(isPlayerFirst: $isPlayerFirst)
         }
         .sheet(isPresented: $showTraining) {
             TrainingView()
+        }
+        .sheet(isPresented: $showHowToPlay) {
+            HowToPlayView()
         }
     }
     
@@ -308,19 +615,11 @@ struct ContentView: View {
             } else {
                 VStack(spacing: 30) {
                     Spacer()
-                    
+
                     // Title Section
                     VStack(spacing: 15) {
                         ZStack {
-                            Circle()
-                                .fill(LinearGradient(colors: [.blue.opacity(0.3), .purple.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .frame(width: 120, height: 120)
-                                .blur(radius: 10)
-                            
-                            Image(systemName: "brain.head.profile")
-                                .font(.system(size: 70))
-                                .foregroundStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .top, endPoint: .bottom))
-                                .shadow(color: .cyan.opacity(0.5), radius: 10)
+                            HackerTerminalView()
                         }
                         
                         Text("AI Card Trainer")
@@ -340,6 +639,10 @@ struct ContentView: View {
                         
                         MenuButton(title: "Train Agent", icon: "brain", color: .purple) {
                             showTraining = true
+                        }
+                        
+                        MenuButton(title: "How to Play", icon: "book.fill", color: .green) {
+                            showHowToPlay = true
                         }
                         
                         MenuButton(title: "Settings", icon: "gearshape.fill", color: .gray) {
